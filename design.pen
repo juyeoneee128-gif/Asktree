@@ -25706,51 +25706,6 @@
                     },
                     {
                       "type": "frame",
-                      "id": "YVnv6",
-                      "name": "sec1Hdr",
-                      "width": "fill_container",
-                      "fill": "#E7E5E4",
-                      "stroke": {
-                        "thickness": 0
-                      },
-                      "gap": 6,
-                      "padding": [
-                        8,
-                        20
-                      ],
-                      "alignItems": "center",
-                      "children": [
-                        {
-                          "type": "icon_font",
-                          "id": "bw5RS",
-                          "width": 12,
-                          "height": 12,
-                          "iconFontName": "chevron-down",
-                          "iconFontFamily": "lucide",
-                          "fill": "#A8A29E"
-                        },
-                        {
-                          "type": "text",
-                          "id": "3NJOM",
-                          "fill": "#78716C",
-                          "content": "미확인",
-                          "fontFamily": "Inter",
-                          "fontSize": 11,
-                          "fontWeight": "700"
-                        },
-                        {
-                          "type": "text",
-                          "id": "jpOSY",
-                          "fill": "#78716C",
-                          "content": "(4)",
-                          "fontFamily": "Inter",
-                          "fontSize": 11,
-                          "fontWeight": "normal"
-                        }
-                      ]
-                    },
-                    {
-                      "type": "frame",
                       "id": "a0IpU",
                       "name": "Container",
                       "width": "fill_container",
@@ -26242,61 +26197,6 @@
                                   "fontWeight": "normal"
                                 }
                               ]
-                            }
-                          ]
-                        }
-                      ]
-                    },
-                    {
-                      "type": "frame",
-                      "id": "myCUe",
-                      "name": "sec2",
-                      "width": "fill_container",
-                      "fill": "#00000000",
-                      "stroke": {
-                        "thickness": 0
-                      },
-                      "layout": "vertical",
-                      "padding": [
-                        8,
-                        0,
-                        0,
-                        0
-                      ],
-                      "children": [
-                        {
-                          "type": "frame",
-                          "id": "8SGr0",
-                          "name": "sec2Hdr",
-                          "width": "fill_container",
-                          "fill": "#E7E5E4",
-                          "stroke": {
-                            "thickness": 0
-                          },
-                          "gap": 6,
-                          "padding": [
-                            8,
-                            20
-                          ],
-                          "alignItems": "center",
-                          "children": [
-                            {
-                              "type": "icon_font",
-                              "id": "mGmFG",
-                              "width": 12,
-                              "height": 12,
-                              "iconFontName": "chevron-right",
-                              "iconFontFamily": "lucide",
-                              "fill": "#A8A29E"
-                            },
-                            {
-                              "type": "text",
-                              "id": "5afeO",
-                              "fill": "#78716C",
-                              "content": "확인 완료",
-                              "fontFamily": "Inter",
-                              "fontSize": 11,
-                              "fontWeight": "700"
                             }
                           ]
                         }

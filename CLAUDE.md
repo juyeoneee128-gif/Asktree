@@ -206,3 +206,164 @@ features/   → 탭/페이지 전용. 비즈니스 로직 포함. app/ 라우트
 - CLAUDE.md 자동 주입 (MVP는 텍스트 복사 방식)
 - 플랜 및 결제 (Phase 2)
 - 휴지통 (정책 확정 후)
+
+---
+
+## 프론트엔드 개발 계획서
+
+### 1. 라우팅 구조
+
+```
+/                           → 리다이렉트 → /projects
+/onboarding                 → 온보딩 Step 1~3
+/projects                   → 프로젝트 메인 홈 (카드 그리드)
+/projects/[id]/status       → [현황] 탭
+/projects/[id]/issues       → [이슈] 탭
+/projects/[id]/claude-md    → CLAUDE.md 탭
+/projects/[id]/sessions     → [세션] 탭
+/projects/[id]/specs        → 기획서 탭
+/projects/[id]/settings     → 프로젝트 설정
+/admin                      → 관리자 설정 메인
+/admin/account              → 계정 정보 상세
+/admin/credits              → 크레딧 상세
+/admin/api-key              → API 키 상세
+/404                        → 404 에러
+/500                        → 500 에러
+```
+
+**레이아웃 중첩 구조:**
+
+```
+RootLayout (app/layout.tsx)
+├── /onboarding              → 단독 레이아웃 (사이드바 없음, Stepper만)
+├── /projects                → 메인 홈 레이아웃 (좌측 홈 사이드바)
+├── /projects/[id]/*         → 프로젝트 레이아웃 (좌측 프로젝트 사이드바 + GlobalHeader)
+├── /admin/*                 → 메인 홈 레이아웃 (좌측 홈 사이드바)
+└── /404, /500               → 단독 레이아웃
+```
+
+### 2. 구현 순서 (의존성 기준)
+
+| Phase | 페이지 | 이유 |
+|-------|--------|------|
+| Phase 0 | 공통 레이아웃 + 라우팅 뼈대 | 모든 페이지의 기반. Sidebar, GlobalHeader 조합. |
+| Phase 1 | 프로젝트 메인 홈 (/projects) | 진입점. 프로젝트 선택 후 다른 탭으로 이동하는 허브. |
+| Phase 2 | [이슈] 탭 (/projects/[id]/issues) | 핵심 와우포인트. Fact→Detail→Fix 상세 패널이 제품 가치의 중심. |
+| Phase 3 | CLAUDE.md 탭 (/projects/[id]/claude-md) | 이슈에서 "확인 완료" 후 보호 규칙이 여기로 연결됨. 이슈 탭과 1세트. |
+| Phase 4 | [현황] 탭 (/projects/[id]/status) | PRD 감리. 기획서 탭과 연동되나 독립 표시 가능. |
+| Phase 5 | [세션] 탭 (/projects/[id]/sessions) | 세션 로그 뷰어. 비교적 단순한 Master-Detail. |
+| Phase 6 | 기획서 탭 (/projects/[id]/specs) | 문서 업로드 + 통합 기능 목록. 현황 탭과 데이터 연동. |
+| Phase 7 | 프로젝트 설정 + 관리자 설정 | SettingsCardGrid 재사용. 모달 3~4개. |
+| Phase 8 | 온보딩 (/onboarding) | Step 1~3. 독립 플로우. 다른 페이지 완성 후가 자연스러움. |
+| Phase 9 | 공통 시스템 (404/500/스켈레톤/세션 만료) | 마무리 단계. |
+
+### 3. 각 페이지별 상세
+
+#### Phase 0: 공통 레이아웃 (0.5일) ✅ 완료
+
+- 사용 컴포넌트: Sidebar, GlobalHeader
+- 신규: HomeSidebar, ProjectLayout
+
+#### Phase 1: 프로젝트 메인 홈 (1일)
+
+- 사용 컴포넌트: Card, StatusDot, Dropdown, Badge, EmptyState, Button
+- 신규: ProjectCard (Card 확장)
+- mock: `Project { id, name, agentStatus, lastAnalysis, issueCount, implementationRate }`
+
+#### Phase 2: [이슈] 탭 (2~2.5일)
+
+- 6개 뷰 + 모달 1개
+- 사용 컴포넌트: MasterDetailLayout, SectionHeader, ListItem, Badge, FactCard, FixBox, TechDetailCard, Button, Modal, CodeBlock, EmptyState
+- 신규: IssueDetailPanel, IssueListSection
+- mock: `Issue { id, title, level, status, fact, detail, fixCommand, file, basis, detectedAt, isRedetected }`
+
+#### Phase 3: CLAUDE.md 탭 (1일)
+
+- 3개 뷰 + 모달 2개
+- 사용 컴포넌트: MasterDetailLayout, SectionHeader, ListItem, CodeBlock, Button, Modal, EmptyState
+- 신규: GuidelineDetailPanel
+- mock: `Guideline { id, title, rule, status, sourceIssueId, detectedAt }`
+
+#### Phase 4: [현황] 탭 (2일)
+
+- 7개 뷰 + 배너 2개 + 모달 2개
+- 사용 컴포넌트: MasterDetailLayout, ListItem, StatusDot, Tooltip, MetricCard, Card, Badge, TextLink, AlertBanner, Modal, EmptyState
+- 신규: FeatureDetailPanel, FeatureListItem
+- mock: `Feature { id, name, status, implementedItems, totalItems, issueCount, lastSession, techStack, relatedFiles, prdSummary }`
+
+#### Phase 5: [세션] 탭 (1일)
+
+- 3개 뷰
+- 사용 컴포넌트: MasterDetailLayout, ListItem, Card, Badge, CodeBlock, EmptyState
+- 신규: SessionDetailPanel
+- mock: `Session { id, number, title, date, filesChanged, summary, changedFiles, prompts, rawLog }`
+
+#### Phase 6: 기획서 탭 (1일)
+
+- 2개 뷰 + 모달 2개 + 드롭다운
+- 사용 컴포넌트: MasterDetailLayout, ListItem, Badge, StatusDot, Dropdown, Modal, EmptyState
+- 신규: SpecFeatureList
+- mock: `SpecDocument { id, name, uploadedAt, type }`, `SpecFeature { id, name, source, status }`
+
+#### Phase 7: 설정 (1.5일)
+
+- 사용 컴포넌트: SettingsCardGrid, StatusDot, Modal, InputField, Button, CodeBlock, ProgressBar, Card
+- 신규: 없음
+
+#### Phase 8: 온보딩 (1.5일)
+
+- 사용 컴포넌트: Stepper, CodeBlock, Button, StatusDot, Card, Badge, ProgressBar
+- 신규: OnboardingLayout, FileUploadArea
+
+#### Phase 9: 공통 시스템 (0.5일)
+
+- 사용 컴포넌트: Button, Modal
+- 신규: Skeleton (pulse 애니메이션)
+
+### 4. 폴더 구조
+
+```
+src/components/features/          ← 신규 페이지 전용 컴포넌트
+  ├── issues/
+  │   ├── IssueDetailPanel.tsx
+  │   └── IssueListSection.tsx
+  ├── claude-md/
+  │   └── GuidelineDetailPanel.tsx
+  ├── status/
+  │   ├── FeatureDetailPanel.tsx
+  │   └── FeatureListItem.tsx
+  ├── sessions/
+  │   └── SessionDetailPanel.tsx
+  ├── specs/
+  │   └── SpecFeatureList.tsx
+  ├── home/
+  │   └── ProjectCard.tsx
+  └── onboarding/
+      ├── OnboardingLayout.tsx
+      └── FileUploadArea.tsx
+```
+
+### 5. 결정 사항 (확정)
+
+| # | 항목 | 결정 |
+|---|------|------|
+| 1 | 상태 관리 | useState/Context (API 연동 시 Zustand 도입) |
+| 2 | mock 데이터 | /lib/mock-data.ts 중앙 관리 |
+| 3 | 온보딩 라우팅 | 단일 페이지 + 내부 step 상태 |
+| 4 | 인증 | mock (MVP 프론트 완성 후 Auth) |
+| 5 | 프로젝트 전환 | 별도 ProjectSwitcher 컴포넌트 |
+
+### 6. 총 예상 작업량: 약 12.5일
+
+| Phase | 작업량 |
+|-------|--------|
+| Phase 0: 공통 레이아웃 | 0.5일 ✅ |
+| Phase 1: 프로젝트 홈 | 1일 |
+| Phase 2: 이슈 탭 | 2.5일 |
+| Phase 3: CLAUDE.md 탭 | 1일 |
+| Phase 4: 현황 탭 | 2일 |
+| Phase 5: 세션 탭 | 1일 |
+| Phase 6: 기획서 탭 | 1일 |
+| Phase 7: 설정 | 1.5일 |
+| Phase 8: 온보딩 | 1.5일 |
+| Phase 9: 공통 시스템 | 0.5일 |
