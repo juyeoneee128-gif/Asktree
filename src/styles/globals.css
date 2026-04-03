@@ -1,0 +1,124 @@
+@import "tailwindcss";
+
+/*
+ * Asktree Design Tokens
+ * PRD v9.1 / 기능명세서 v9.1 / Storybook 컴포넌트 목록 기반
+ */
+
+@theme {
+  /* ─── Colors: Warm Gray (Stone) ─── */
+  --color-gray-50: #FAFAF9;
+  --color-gray-100: #F5F5F4;
+  --color-gray-200: #E7E5E4;
+  --color-gray-300: #D6D3D1;
+  --color-gray-400: #A8A29E;
+  --color-gray-500: #78716C;
+  --color-gray-600: #57534E;
+  --color-gray-700: #44403C;
+  --color-gray-800: #292524;
+  --color-gray-900: #1C1917;
+  --color-gray-950: #0C0A09;
+
+  /* ─── Colors: Orange ─── */
+  --color-orange-50: #FFF7ED;
+  --color-orange-100: #FFEDD5;
+  --color-orange-200: #FED7AA;
+  --color-orange-300: #FDBA74;
+  --color-orange-400: #FB923C;
+  --color-orange-500: #F97316;
+  --color-orange-600: #E67D22;
+  --color-orange-700: #C2410C;
+  --color-orange-800: #9A3412;
+  --color-orange-900: #7C2D12;
+  --color-orange-950: #431407;
+
+  /* ─── Semantic Colors ─── */
+  --color-primary: #E67D22;
+  --color-primary-hover: #C2410C;
+  --color-primary-active: #9A3412;
+  --color-primary-foreground: #FFFFFF;
+
+  --color-foreground: #1C1917;
+  --color-background: #FFFFFF;
+  --color-muted: #F5F5F4;
+  --color-muted-foreground: #78716C;
+  --color-border: #E7E5E4;
+  --color-input: #E7E5E4;
+  --color-card: #FFFFFF;
+  --color-card-foreground: #1C1917;
+  --color-destructive: #DC2626;
+  --color-destructive-hover: #B91C1C;
+  --color-destructive-active: #991B1B;
+  --color-ring: #E67D22;
+
+  /* ─── Semantic Status ─── */
+  --color-error: #DC2626;
+  --color-warning: #EAB308;
+  --color-success: #16A34A;
+  --color-info: #3B82F6;
+
+  /* ─── Implementation Status Colors ─── */
+  --color-status-implemented: #1E40AF;
+  --color-status-implemented-bg: #EFF6FF;
+  --color-status-partial: #C2410C;
+  --color-status-partial-bg: #FFF7ED;
+  --color-status-unimplemented: #A8A29E;
+  --color-status-unimplemented-bg: #F5F5F4;
+  --color-status-attention: #DC2626;
+  --color-status-attention-bg: #FEE2E2;
+
+  /* ─── Issue Level Colors ─── */
+  --color-critical: #DC2626;
+  --color-critical-bg: #FEF2F2;
+  --color-warning-orange: #F97316;
+  --color-warning-orange-bg: #FFF7ED;
+  --color-info-blue: #3B82F6;
+  --color-info-blue-bg: #EFF6FF;
+
+  /* ─── Typography ─── */
+  --font-primary: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Roboto Mono', ui-monospace, monospace;
+
+  /* ─── Border Radius ─── */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --radius-pill: 9999px;
+
+  /* ─── Shadows ─── */
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-card-hover: 0 2px 8px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.12);
+  --shadow-xl: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+/* ─── Base Styles ─── */
+body {
+  font-family: var(--font-primary);
+  color: var(--color-foreground);
+  background-color: var(--color-background);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code, pre, kbd, samp {
+  font-family: var(--font-mono);
+}
+
+/* ─── Keyframe Animations ─── */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes dropdownIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
