@@ -1,5 +1,208 @@
+# Asktree — CLAUDE.md
+
+Claude Code 프로젝트의 코드 파손 감지 + 복구 + 보호 도구 (MVP)
+
+---
+
+## 작업 규칙
+
 - 파일 3개 이상 수정 시 반드시 계획을 먼저 보여주고 승인 후 실행
 - 기존 컴포넌트(src/components/)는 수정하지 말고 새 컴포넌트로 확장
 - 커밋 메시지는 한글로, "feat: 이슈 탭 Critical 뷰 구현" 형식
 - 새로운 페이지나 기능을 만들기 전에 반드시 계획서를 먼저 작성하고 승인을 받아라
 - "실행해" 또는 "진행해"라고 할 때까지 코드를 작성하지 마라
+
+---
+
+## 제품 정체성
+
+- 한 줄 정의: Claude Code로 코딩할 때, AI가 기존 기능을 망가뜨리면 자동 감지 → Fix 제공 → CLAUDE.md 보호 규칙 추가
+- 타겟: 사이드프로젝트/1인 SaaS 바이브코더 (비개발자, Claude Code 사용자)
+- 핵심 루프: 감지 → Fix → 보호. 한 번 당한 문제는 두 번 없다.
+- MVP 범위: Claude Code 전용. Cursor/Aider는 Phase 2.
+
+---
+
+## 기술 스택
+
+- **프레임워크**: Next.js 16 (App Router)
+- **언어**: TypeScript (strict mode)
+- **스타일링**: Tailwind CSS v4
+- **UI 라이브러리**: React 19, Lucide React (아이콘)
+- **DB**: Supabase (PostgreSQL)
+- **AI 분석**: Claude API
+- **배포**: Vercel
+- **테스트**: Vitest + Playwright
+- **컴포넌트 문서화**: Storybook 10
+- **폰트**: Pretendard (한글), JetBrains Mono (코드/터미널)
+
+---
+
+## 디렉토리 구조
+
+```
+app/                          # Next.js App Router 페이지
+  page.tsx                    # 메인 홈 (프로젝트 카드 그리드)
+  onboarding/page.tsx         # 온보딩 3단계
+  admin/                      # 관리자 설정 (계정/크레딧/API키)
+  projects/
+    page.tsx                  # 프로젝트 목록
+    [id]/
+      page.tsx                # 프로젝트 리다이렉트
+      status/page.tsx         # [현황] 탭
+      issues/page.tsx         # [이슈] 탭
+      claude-md/page.tsx      # [CLAUDE.md] 탭
+      sessions/page.tsx       # [세션] 탭
+      specs/page.tsx          # 기획서 탭
+      settings/page.tsx       # 프로젝트 설정
+
+src/
+  components/
+    ui/                       # 기본 UI 컴포넌트 (Badge, Button, Card, ...)
+    composite/                # 조합 컴포넌트 (AlertBanner, EmptyState, SettingsCardGrid)
+    layout/                   # 레이아웃 컴포넌트 (Sidebar, GlobalHeader, MasterDetailLayout)
+    features/                 # 기능별 컴포넌트 (home/, issues/, status/, ...)
+  lib/                        # 유틸리티, mock 데이터
+  styles/
+    globals.css               # 디자인 토큰 (@theme)
+
+stories/                      # Storybook 설정
+docs/                         # PRD, 기능명세서
+```
+
+---
+
+## 컴포넌트 계층
+
+```
+ui/         → 최소 단위. 독립적. props만으로 동작. 비즈니스 로직 없음.
+composite/  → ui 컴포넌트 2개 이상 조합. 약간의 상태 허용.
+layout/     → 페이지 골격. Sidebar, GlobalHeader, MasterDetailLayout.
+features/   → 탭/페이지 전용. 비즈니스 로직 포함. app/ 라우트와 1:1 대응.
+```
+
+- 새 컴포넌트는 반드시 같은 경로에 `*.stories.tsx` 파일 함께 생성
+- 공통 컴포넌트는 각 디렉토리의 `index.ts`에서 export
+
+---
+
+## 디자인 시스템
+
+### 컬러 (Warm Gray / Stone 계열)
+
+| 토큰 | 값 | 용도 |
+|---|---|---|
+| --color-primary | #E67D22 | 주 액센트 (Claude Orange) |
+| --color-primary-hover | #C2410C | 버튼 hover |
+| --color-primary-active | #9A3412 | 버튼 active |
+| --color-foreground | #1C1917 | 기본 텍스트 |
+| --color-muted | #F5F5F4 | 좌측 리스트 배경, 배지 배경 |
+| --color-muted-foreground | #78716C | 부제, 보조 텍스트 |
+| --color-border | #E7E5E4 | 구분선, 테두리 |
+| --color-destructive | #DC2626 | 삭제, Critical |
+| --color-warning-orange | #F97316 | Warning 이슈 |
+| --color-info-blue | #3B82F6 | Info 이슈 |
+
+### 상태 컬러
+
+| 상태 | 컬러 | 배지 배경 |
+|---|---|---|
+| 구현 완료 | #1E40AF (네이비) | #EFF6FF |
+| 부분 구현 | #C2410C (주황) | #FFF7ED |
+| 미구현 | #A8A29E (회색) | #F5F5F4 |
+| 확인 필요 | #DC2626 (빨강) | #FEE2E2 |
+
+### 배경색 4단계 명도 위계
+
+1. 글로벌 헤더: #F5F5F4 + 하단 #E7E5E4 border
+2. 좌측 사이드바: #FFFFFF
+3. 좌측 리스트 (Master): #F5F5F4
+4. 우측 패널 (Detail): #FAFAF9
+5. 카드: #FFFFFF + shadow-card
+
+### 타이포그래피
+
+- 본문: Pretendard
+- 코드/터미널: JetBrains Mono
+- 기준 해상도: 1440 x 900
+
+### 버튼 체계
+
+| 종류 | 기본 | hover | active |
+|---|---|---|---|
+| Primary | #E67D22 배경, 흰색 | #C2410C | #9A3412 |
+| Outline | border #E7E5E4, #1C1917 텍스트 | 배경 #F5F5F4 | 배경 #E7E5E4 |
+| Ghost | 투명, #78716C 텍스트 | 배경 #F5F5F4 | 배경 #E7E5E4 |
+| 확인 완료 | #44403C 배경, 흰색 | #292524 | #1C1917 |
+| Destructive | #DC2626 배경, 흰색 | #B91C1C | #991B1B |
+| Destructive Ghost | border #FCA5A5, #DC2626 텍스트 | 배경 #FEF2F2 | 배경 #FEE2E2 |
+
+### 인터랙션
+
+- 토스트: fade-in 300ms, 3초 후 fade-out 300ms, 하단 중앙
+- 모달: 오버레이 fade-in 200ms + scale 0.95→1.0 200ms
+- 드롭다운: fade-in + translateY(-4px→0) 150ms
+- 카드 hover: shadow 강화 (shadow-card → shadow-card-hover)
+- 텍스트 링크(#E67D22): hover 시 밑줄
+- 초록색 사용 제한: 온보딩/스테퍼에서 미사용. 체크 아이콘은 #1C1917
+
+---
+
+## 레이아웃 규칙
+
+- 전체: Manyfast 스타일 좌측 사이드바(220px) + 우측 메인 콘텐츠
+- 프로젝트 내부: Master-Detail (좌측 리스트 + 우측 상세 패널)
+- 빈 상태: Master-Detail 유지 (좌측 빈 섹션 + 우측 안내 메시지). CTA 버튼 최대 240px.
+- 사이드바 메뉴 순서: 현황 / 이슈 / CLAUDE.md / 세션 / 기획서 / 설정
+- 글로벌 헤더 높이: 56px
+- 선택 항목: #FFFFFF 배경 + 좌측 컬러 3px 세로선
+
+---
+
+## 탭별 핵심 구조
+
+### [이슈] 탭
+- 3섹션 리스트: "미확인 (N)" / "확인 완료 (N)" / "해결됨 (N)"
+- 상세 패널: Fact → Detail → Fix → 기술 근거 → 안내 문구 → 확인 완료 버튼
+- Fix 박스: primary 5% 배경 + 모노스페이스 + 복사 버튼
+- 이슈 레벨: Critical(#DC2626) / Warning(#F97316) / Info(#3B82F6)
+- "확인 완료" 후 CLAUDE.md 보호 규칙 추가 제안 모달
+
+### [현황] 탭
+- 기획서 대비 구현 현황 (프로그레스 바 + 퍼센트)
+- 기능별 상태: 구현완료/부분구현/미구현/확인필요
+- 메트릭 카드 3열 + 구현 항목 리스트 + 기획서 참고 + 기술 상세
+- ⓘ 툴팁: hover 시 표시, #1C1917 다크 배경, 흰색 텍스트
+
+### [CLAUDE.md] 탭
+- 2섹션: "미적용 (N)" / "적용 완료 (N)"
+- 가이드라인 본문: 코드 블록 스타일 (#292524 배경, 모노스페이스)
+- 미리보기: 터미널 스타일 모달 (macOS dot, 다크 배경)
+
+### [세션] 탭
+- 세션 리스트 + 상세 패널 (요약 | 세션 로그 탭)
+
+### 기획서 탭
+- 좌측 첨부 문서 리스트 + 우측 통합 기능 목록 (출처 FRD/PRD pill)
+
+---
+
+## 비즈니스 규칙
+
+- 크레딧: 맛보기 10회 무료 → 본인 API 키 연동 또는 월정액 구독
+- 분석 실행 전 "예상 소요 크레딧: 약 N 크레딧" 사전 안내
+- 인증: Google OAuth (최소 스코프: email, profile)
+- API 키: Supabase pgcrypto AES-256 서버 사이드 암호화
+- 데이터 전송: JSONL 로그 + 파일 구조 + diff. 코드 원본은 Ephemeral Processing (분석 후 즉시 파기)
+- API 키 미연결 상태: #F97316 주황 ("대기" — 빨강 아님)
+
+---
+
+## 의도적 미포함 (Non-Goals)
+
+- Cursor/Aider 지원 (Phase 2)
+- 코드 직접 수정 (Fix 가이드만 제공)
+- 실시간 디버깅 (세션 종료 후 분석)
+- CLAUDE.md 자동 주입 (MVP는 텍스트 복사 방식)
+- 플랜 및 결제 (Phase 2)
+- 휴지통 (정책 확정 후)
