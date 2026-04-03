@@ -485,3 +485,15 @@ app/api/
 | 2 | 인증 | Supabase Auth + Google OAuth |
 | 3 | 로컬 에이전트 | 백엔드 범위 포함 (setup-asktree.sh) |
 | 4 | 진행 순서 | Tier 0부터 순서대로 |
+
+### 진행 현황
+
+| Tier | 상태 | 완료일 | 주요 산출물 |
+|------|------|--------|------------|
+| Tier 0 | ✅ 완료 | 2026-04-03 | 7개 테이블 스키마(001_initial.sql), Supabase Auth(client/server/middleware), Google OAuth 로그인/콜백, DB 타입(types.ts) |
+| Tier 1 | ✅ 완료 | 2026-04-03 | 프로젝트 CRUD API(GET/POST/PATCH/DELETE), 로그아웃(POST /auth/logout) |
+| Tier 2 | 🔲 대기 | - | 에이전트 데이터 수신 API, 세션 파싱, Ephemeral Processing |
+| Tier 3 | 🔲 대기 | - | 정적 분석, 세션 간 비교, 이슈/Fix/보호 규칙 생성, Claude API 연동 |
+| Tier 4 | 🔲 대기 | - | 이슈/가이드라인 CRUD API, 분석 실행 트리거 |
+| Tier 5 | 🔲 대기 | - | 기획서 업로드/기능 추출, PRD vs 코드 대조, Reverse IA |
+| Tier 6 | 🔲 대기 | - | 크레딧 관리, API 키 암호화, 계정 관리 |
