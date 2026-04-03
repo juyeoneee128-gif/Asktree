@@ -36,6 +36,7 @@ export interface Database {
           total_credits?: number;
           used_this_month?: number;
         };
+        Relationships: [];
       };
       projects: {
         Row: {
@@ -62,6 +63,7 @@ export interface Database {
           agent_last_seen?: string | null;
           agent_path?: string | null;
         };
+        Relationships: [];
       };
       sessions: {
         Row: {
@@ -96,6 +98,7 @@ export interface Database {
           changed_files?: Json;
           prompts?: Json;
         };
+        Relationships: [];
       };
       issues: {
         Row: {
@@ -146,6 +149,7 @@ export interface Database {
           confirmed_at?: string | null;
           resolved_at?: string | null;
         };
+        Relationships: [];
       };
       guidelines: {
         Row: {
@@ -172,6 +176,7 @@ export interface Database {
           status?: 'unapplied' | 'applied';
           source_issue_id?: string | null;
         };
+        Relationships: [];
       };
       spec_documents: {
         Row: {
@@ -196,6 +201,7 @@ export interface Database {
           type?: 'FRD' | 'PRD';
           file_url?: string | null;
         };
+        Relationships: [];
       };
       spec_features: {
         Row: {
@@ -232,7 +238,20 @@ export interface Database {
           related_files?: Json;
           prd_summary?: string | null;
         };
+        Relationships: [];
       };
+    };
+    Views: {
+      [_ in never]: never;
+    };
+    Functions: {
+      [_ in never]: never;
+    };
+    Enums: {
+      [_ in never]: never;
+    };
+    CompositeTypes: {
+      [_ in never]: never;
     };
   };
 }

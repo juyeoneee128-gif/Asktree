@@ -85,14 +85,16 @@ export function HomeSidebar() {
           );
         })}
 
-        {/* Profile / Logout */}
-        <button
-          type="button"
-          className="w-full flex items-center gap-2.5 px-4 py-2.5 text-[14px] text-muted-foreground hover:bg-muted transition-colors cursor-pointer"
-        >
-          <LogOut size={18} />
-          <span>로그아웃</span>
-        </button>
+        {/* Logout */}
+        <form action="/auth/logout" method="POST">
+          <button
+            type="submit"
+            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-[14px] text-muted-foreground hover:bg-muted transition-colors cursor-pointer"
+          >
+            <LogOut size={18} />
+            <span>로그아웃</span>
+          </button>
+        </form>
       </div>
     </aside>
   );
