@@ -367,3 +367,121 @@ src/components/features/          ← 신규 페이지 전용 컴포넌트
 | Phase 7: 설정 | 1.5일 |
 | Phase 8: 온보딩 | 1.5일 |
 | Phase 9: 공통 시스템 | 0.5일 |
+
+---
+
+## 백엔드 개발 계획서
+
+### 개발 우선순위 (의존성 기준)
+
+```
+Tier 0 (스키마 + 인증 + API 구조)
+  └─→ Tier 1 (프로젝트 CRUD)
+        └─→ Tier 2 (에이전트 데이터 수신 + 세션 파싱)
+              └─→ Tier 3 (분석 엔진 + 이슈/Fix/보호 규칙 생성)  ← 핵심
+                    ├─→ Tier 4 (이슈/가이드라인 API)
+                    └─→ Tier 5 (기획서 + 현황)
+                          └─→ Tier 6 (크레딧 + 설정)
+```
+
+### Tier 0: 기반 인프라
+
+| # | 기능 | 상세 |
+|---|------|------|
+| 0-1 | Supabase 스키마 설계 | 7개 테이블: users, projects, sessions, issues, guidelines, spec_documents, spec_features |
+| 0-2 | Google OAuth 인증 | Supabase Auth, 세션 토큰(httpOnly cookie), JWT |
+| 0-3 | API 라우트 구조 + 미들웨어 | app/api/ 구조, 인증 미들웨어, 에러 핸들링 공통 |
+
+### Tier 1: 프로젝트 관리
+
+| # | 기능 | 상세 |
+|---|------|------|
+| 1-1 | 프로젝트 CRUD | 생성/조회/수정/삭제, 프로젝트 목록 |
+| 1-2 | 에이전트 연결 상태 관리 | 연결/미연결 상태, 마지막 통신 시간 |
+
+### Tier 2: 데이터 수집 파이프라인
+
+| # | 기능 | 상세 |
+|---|------|------|
+| 2-1 | 로컬 에이전트 데이터 수신 API | JSONL 로그, 파일 구조, diff 수신 (Smart Push) |
+| 2-2 | 세션 파싱 및 저장 | JSONL → 세션 단위 분리, 요약 생성, 변경 파일 추출 |
+| 2-3 | Ephemeral Processing | 코드 원본 수신 → 분석 → 즉시 파기. TTL + 삭제 cron |
+
+### Tier 3: 분석 엔진 (핵심)
+
+| # | 기능 | 상세 |
+|---|------|------|
+| 3-1 | 정적 분석 | API 키 노출, 인증 부재, 에러 처리 누락, 미호출 함수. OWASP Top 10 |
+| 3-2 | 세션 간 비교 분석 | 이전 vs 현재 세션 diff → 삭제/변경 기능 감지 |
+| 3-3 | 이슈 + Fix 생성 | 감지 결과 → Issue 레코드 (level, fact, detail, fixCommand) |
+| 3-4 | CLAUDE.md 보호 규칙 생성 | 이슈 기반 보호 규칙 텍스트 자동 생성 |
+| 3-5 | Claude API 연동 | 분석 프롬프트 설계, API 호출, 응답 파싱 |
+
+### Tier 4: 이슈 관리 API
+
+| # | 기능 | 상세 |
+|---|------|------|
+| 4-1 | 이슈 CRUD + 상태 전이 | 미확인→확인완료→해결됨, 재감지 시 미확인 복귀 |
+| 4-2 | 이슈 목록 조회 | 프로젝트별, 상태별 필터링, 레벨별 카운트 |
+| 4-3 | 가이드라인 CRUD | 미적용/적용완료 상태, 삭제 |
+| 4-4 | 분석 실행 트리거 | 수동 분석 실행, 예상 크레딧 계산 |
+
+### Tier 5: 현황 (PRD 감리)
+
+| # | 기능 | 상세 |
+|---|------|------|
+| 5-1 | 기획서 업로드 + 기능 추출 | 문서 업로드 → Claude API로 기능 목록 자동 추출 |
+| 5-2 | PRD vs 코드 대조 | 기획서 기능 vs 실제 코드 → 구현/부분/미구현/확인필요 판정 |
+| 5-3 | Reverse IA | 기획서 없이 코드+CLI 로그에서 기능 자동 추출 |
+
+### Tier 6: 크레딧 + 설정
+
+| # | 기능 | 상세 |
+|---|------|------|
+| 6-1 | 크레딧 관리 | 잔여 조회, 분석 시 차감, 사용 내역 기록 |
+| 6-2 | API 키 관리 | AES-256 암호화 저장/조회 (pgcrypto) |
+| 6-3 | 계정 관리 | 프로필 수정, 계정 삭제 (cascade) |
+
+### DB 스키마 (7개 테이블)
+
+```
+users         { id, name, email, avatar_url, login_method, credits, total_credits }
+projects      { id, user_id, name, agent_status, agent_last_seen, agent_path }
+sessions      { id, project_id, number, title, summary, raw_log, files_changed, changed_files, prompts }
+issues        { id, project_id, session_id, title, level, status, fact, detail, fix_command, file, basis, is_redetected }
+guidelines    { id, project_id, source_issue_id, title, rule, status }
+spec_documents { id, project_id, name, type, file_url }
+spec_features  { id, project_id, document_id, name, source, status, implemented_items, total_items, related_files, prd_summary }
+```
+
+### API 라우트 구조
+
+```
+app/api/
+├── projects/
+│   ├── route.ts                GET (목록), POST (생성)
+│   └── [id]/
+│       ├── route.ts            GET, PATCH, DELETE
+│       ├── issues/route.ts
+│       ├── sessions/route.ts
+│       ├── guidelines/route.ts
+│       ├── specs/
+│       │   ├── documents/route.ts
+│       │   └── features/route.ts
+│       └── analyze/route.ts    POST (분석 실행)
+├── agent/
+│   └── push/route.ts           POST (에이전트 데이터 수신)
+└── user/
+    ├── route.ts                GET, PATCH
+    ├── credits/route.ts
+    └── api-key/route.ts
+```
+
+### 결정 사항 (확정)
+
+| # | 항목 | 결정 |
+|---|------|------|
+| 1 | DB | Supabase (PostgreSQL) — 신규 프로젝트 생성 |
+| 2 | 인증 | Supabase Auth + Google OAuth |
+| 3 | 로컬 에이전트 | 백엔드 범위 포함 (setup-asktree.sh) |
+| 4 | 진행 순서 | Tier 0부터 순서대로 |
