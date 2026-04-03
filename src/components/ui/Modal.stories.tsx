@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
-import { fn } from '@storybook/test';
+import { fn } from 'storybook/test';
 import { Shield, Trash2, AlertTriangle } from 'lucide-react';
 import { Modal } from './Modal';
 import { Button } from './Button';

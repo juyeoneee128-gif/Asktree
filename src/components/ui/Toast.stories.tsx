@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
-import { fn } from '@storybook/test';
+import { fn } from 'storybook/test';
 import { Check, Copy } from 'lucide-react';
 import { Toast } from './Toast';
 import { Button } from './Button';

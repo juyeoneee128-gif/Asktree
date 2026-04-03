@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
-import { fn } from '@storybook/test';
+import { fn } from 'storybook/test';
 import { Folder, Wifi, Key, User, Coins } from 'lucide-react';
 import { SettingsCardGrid } from './SettingsCardGrid';
 import { StatusDot } from '../ui/StatusDot';

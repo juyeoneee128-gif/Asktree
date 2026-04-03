@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
-import { fn } from '@storybook/test';
+import { fn } from 'storybook/test';
 import { RefreshCw, Trash2, Edit2, MoreVertical } from 'lucide-react';
 import { Dropdown } from './Dropdown';
 import { Button } from './Button';

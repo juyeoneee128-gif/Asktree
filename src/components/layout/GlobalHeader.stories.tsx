@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/nextjs-vite';
-import { fn } from '@storybook/test';
+import { fn } from 'storybook/test';
 import { GlobalHeader } from './GlobalHeader';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
