@@ -64,6 +64,7 @@ async function callStaticAnalysis(
     systemPrompt: STATIC_ANALYSIS_SYSTEM,
     userMessage,
     tools: [ANALYSIS_RESULT_TOOL],
+    maxTokens: 8192,
   });
 
   return parseAnalysisResponse(result);
