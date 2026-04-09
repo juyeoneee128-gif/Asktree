@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { extractBearerToken, verifyAgentToken } from '@/src/lib/agent/auth-agent';
 import { validatePayload, validatePayloadSize, MAX_PAYLOAD_SIZE } from '@/src/lib/agent/validate-payload';
 import { parseSession } from '@/src/lib/agent/parse-session';
-import { saveSession, updateAgentStatus } from '@/src/lib/agent/save-session';
+import { saveSession, updateAgentStatus, mergeChangedFiles } from '@/src/lib/agent/save-session';
 import { saveEphemeralDiffs, saveEphemeralFileTree, cleanupExpiredEphemeral } from '@/src/lib/agent/ephemeral';
 import { runAnalysis } from '@/src/lib/analysis/run-analysis';
 
@@ -107,6 +107,16 @@ export async function POST(request: Request) {
   } catch (err) {
     console.error('[push] Ephemeral save failed:', (err as Error).message);
     // ephemeral 저장 실패는 세션 저장에 영향 주지 않음
+  }
+
+  // 8.5. diff 파일 경로를 changed_files에 병합
+  if (payload.session_data.diffs && payload.session_data.diffs.length > 0) {
+    try {
+      const diffFiles = payload.session_data.diffs.map((d) => d.file_path);
+      await mergeChangedFiles(saved.id, diffFiles);
+    } catch (err) {
+      console.error('[push] Changed files merge failed:', (err as Error).message);
+    }
   }
 
   // 9. 에이전트 상태 업데이트

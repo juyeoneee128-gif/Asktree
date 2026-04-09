@@ -112,6 +112,39 @@ export async function saveSession(
 }
 
 /**
+ * 세션의 changed_files에 추가 파일 경로를 병합합니다.
+ * push 시 에이전트가 보낸 diff의 file_path를 반영하기 위해 사용합니다.
+ */
+export async function mergeChangedFiles(
+  sessionId: string,
+  extraFiles: string[]
+): Promise<void> {
+  if (extraFiles.length === 0) return;
+
+  const supabase = createAdminClient();
+
+  const { data: session } = await supabase
+    .from('sessions')
+    .select('changed_files')
+    .eq('id', sessionId)
+    .single();
+
+  const existing = Array.isArray(session?.changed_files)
+    ? (session.changed_files as string[])
+    : [];
+
+  const merged = [...new Set([...existing, ...extraFiles])].sort();
+
+  await supabase
+    .from('sessions')
+    .update({
+      changed_files: merged as unknown as Database['public']['Tables']['sessions']['Update']['changed_files'],
+      files_changed: merged.length,
+    })
+    .eq('id', sessionId);
+}
+
+/**
  * 프로젝트의 에이전트 상태를 업데이트합니다.
  */
 export async function updateAgentStatus(projectId: string): Promise<void> {
