@@ -46,6 +46,7 @@ export interface Database {
           agent_status: 'connected' | 'disconnected';
           agent_last_seen: string | null;
           agent_path: string | null;
+          agent_token: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -56,12 +57,14 @@ export interface Database {
           agent_status?: 'connected' | 'disconnected';
           agent_last_seen?: string | null;
           agent_path?: string | null;
+          agent_token?: string | null;
         };
         Update: {
           name?: string;
           agent_status?: 'connected' | 'disconnected';
           agent_last_seen?: string | null;
           agent_path?: string | null;
+          agent_token?: string | null;
         };
         Relationships: [];
       };
@@ -76,6 +79,7 @@ export interface Database {
           files_changed: number;
           changed_files: Json;
           prompts: Json;
+          external_session_id: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -89,6 +93,7 @@ export interface Database {
           files_changed?: number;
           changed_files?: Json;
           prompts?: Json;
+          external_session_id?: string | null;
         };
         Update: {
           title?: string;
@@ -97,6 +102,7 @@ export interface Database {
           files_changed?: number;
           changed_files?: Json;
           prompts?: Json;
+          external_session_id?: string | null;
         };
         Relationships: [];
       };
@@ -237,6 +243,30 @@ export interface Database {
           total_items?: number;
           related_files?: Json;
           prd_summary?: string | null;
+        };
+        Relationships: [];
+      };
+    };
+      ephemeral_data: {
+        Row: {
+          id: string;
+          session_id: string;
+          data_type: 'file_tree' | 'diff';
+          content: Json;
+          expires_at: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          session_id: string;
+          data_type: 'file_tree' | 'diff';
+          content: Json;
+          expires_at?: string;
+        };
+        Update: {
+          data_type?: 'file_tree' | 'diff';
+          content?: Json;
+          expires_at?: string;
         };
         Relationships: [];
       };
