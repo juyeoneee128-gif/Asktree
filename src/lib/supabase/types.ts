@@ -13,6 +13,7 @@ export interface Database {
           credits: number;
           total_credits: number;
           used_this_month: number;
+          encrypted_api_key: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -25,6 +26,7 @@ export interface Database {
           credits?: number;
           total_credits?: number;
           used_this_month?: number;
+          encrypted_api_key?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -35,6 +37,7 @@ export interface Database {
           credits?: number;
           total_credits?: number;
           used_this_month?: number;
+          encrypted_api_key?: string | null;
         };
         Relationships: [];
       };
