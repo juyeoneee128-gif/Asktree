@@ -1,46 +1,77 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, FolderOpen } from 'lucide-react';
 import { Button } from '@/src/components/ui/Button';
 import { EmptyState } from '@/src/components/composite/EmptyState';
 import { ProjectCard } from '@/src/components/features/home/ProjectCard';
-import { mockProjects, type Project } from '@/src/lib/mock-data';
+import type { Project } from '@/src/lib/mock-data';
+import {
+  fetchProjects,
+  createProject,
+  updateProject,
+  deleteProject,
+} from '@/src/lib/api/projects';
 
 export default function ProjectsPage() {
   const router = useRouter();
-  const [projects, setProjects] = useState<Project[]>(mockProjects);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleCreate = () => {
+  const loadProjects = useCallback(async () => {
+    try {
+      setError(null);
+      const data = await fetchProjects();
+      setProjects(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '프로젝트를 불러올 수 없습니다');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadProjects();
+  }, [loadProjects]);
+
+  const handleCreate = async () => {
     const name = window.prompt('새 프로젝트 이름을 입력하세요');
     if (!name?.trim()) return;
-    const newProject: Project = {
-      id: `proj-${Date.now()}`,
-      name: name.trim(),
-      agentStatus: 'disconnected',
-      issueCount: { critical: 0, warning: 0, info: 0 },
-      implementationRate: 0,
-      createdAt: new Date().toISOString().slice(0, 10),
-    };
-    setProjects((prev) => [newProject, ...prev]);
+    try {
+      const newProject = await createProject(name.trim());
+      setProjects((prev) => [newProject, ...prev]);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : '프로젝트 생성에 실패했습니다');
+    }
   };
 
-  const handleEdit = (id: string) => {
+  const handleEdit = async (id: string) => {
     const target = projects.find((p) => p.id === id);
     if (!target) return;
     const newName = window.prompt('새 이름을 입력하세요', target.name);
-    if (!newName?.trim()) return;
-    setProjects((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, name: newName.trim() } : p))
-    );
+    if (!newName?.trim() || newName.trim() === target.name) return;
+    try {
+      const updated = await updateProject(id, newName.trim());
+      setProjects((prev) =>
+        prev.map((p) => (p.id === id ? updated : p))
+      );
+    } catch (e) {
+      alert(e instanceof Error ? e.message : '프로젝트 수정에 실패했습니다');
+    }
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     const target = projects.find((p) => p.id === id);
     if (!target) return;
     if (!window.confirm(`"${target.name}" 프로젝트를 삭제하시겠습니까?`)) return;
-    setProjects((prev) => prev.filter((p) => p.id !== id));
+    try {
+      await deleteProject(id);
+      setProjects((prev) => prev.filter((p) => p.id !== id));
+    } catch (e) {
+      alert(e instanceof Error ? e.message : '프로젝트 삭제에 실패했습니다');
+    }
   };
 
   const handleClick = (id: string) => {
@@ -67,7 +98,18 @@ export default function ProjectsPage() {
       {/* Content */}
       <div className="px-8 py-8">
         <div className="max-w-[1200px] mx-auto">
-          {projects.length === 0 ? (
+          {loading ? (
+            <div className="flex items-center justify-center h-[400px]">
+              <p className="text-[14px] text-muted-foreground">프로젝트를 불러오는 중...</p>
+            </div>
+          ) : error ? (
+            <div className="flex flex-col items-center justify-center h-[400px] gap-3">
+              <p className="text-[14px] text-destructive">{error}</p>
+              <Button variant="outline" onClick={loadProjects}>
+                다시 시도
+              </Button>
+            </div>
+          ) : projects.length === 0 ? (
             <div className="h-[400px]">
               <EmptyState
                 icon={<FolderOpen size={48} className="text-gray-300" />}
