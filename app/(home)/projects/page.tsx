@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, FolderOpen } from 'lucide-react';
 import { Button } from '@/src/components/ui/Button';
+import { Modal } from '@/src/components/ui/Modal';
 import { EmptyState } from '@/src/components/composite/EmptyState';
 import { ProjectCard } from '@/src/components/features/home/ProjectCard';
 import type { Project } from '@/src/lib/mock-data';
@@ -19,6 +20,8 @@ export default function ProjectsPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
 
   const loadProjects = useCallback(async () => {
     try {
@@ -36,12 +39,18 @@ export default function ProjectsPage() {
     loadProjects();
   }, [loadProjects]);
 
+  const handleOpenCreateModal = () => {
+    setNewProjectName('');
+    setCreateModalOpen(true);
+  };
+
   const handleCreate = async () => {
-    const name = window.prompt('새 프로젝트 이름을 입력하세요');
-    if (!name?.trim()) return;
+    if (!newProjectName.trim()) return;
     try {
-      const newProject = await createProject(name.trim());
+      const newProject = await createProject(newProjectName.trim());
       setProjects((prev) => [newProject, ...prev]);
+      setCreateModalOpen(false);
+      setNewProjectName('');
     } catch (e) {
       alert(e instanceof Error ? e.message : '프로젝트 생성에 실패했습니다');
     }
@@ -89,7 +98,7 @@ export default function ProjectsPage() {
               총 {projects.length}개의 프로젝트
             </p>
           </div>
-          <Button onClick={handleCreate} className="gap-1.5">
+          <Button onClick={handleOpenCreateModal} className="gap-1.5">
             <Plus size={16} />새 프로젝트
           </Button>
         </div>
@@ -117,7 +126,7 @@ export default function ProjectsPage() {
                 description="첫 프로젝트를 생성하고 Claude Code 세션을 연동해보세요."
                 primaryAction={{
                   label: '+ 새 프로젝트 만들기',
-                  onClick: handleCreate,
+                  onClick: handleOpenCreateModal,
                 }}
               />
             </div>
@@ -136,6 +145,42 @@ export default function ProjectsPage() {
           )}
         </div>
       </div>
+
+      {/* 새 프로젝트 생성 모달 */}
+      <Modal
+        isOpen={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        title="새 프로젝트"
+        width={400}
+        actions={[
+          {
+            label: '취소',
+            variant: 'outline',
+            onClick: () => setCreateModalOpen(false),
+          },
+          {
+            label: '생성',
+            variant: 'primary',
+            onClick: handleCreate,
+          },
+        ]}
+      >
+        <div className="flex flex-col gap-2">
+          <label htmlFor="project-name" className="text-[13px] font-medium text-foreground">
+            프로젝트 이름
+          </label>
+          <input
+            id="project-name"
+            type="text"
+            value={newProjectName}
+            onChange={(e) => setNewProjectName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') handleCreate(); }}
+            placeholder="프로젝트 이름을 입력하세요"
+            autoFocus
+            className="w-full px-3 py-2.5 text-[14px] border border-border rounded-lg bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
+          />
+        </div>
+      </Modal>
     </div>
   );
 }
