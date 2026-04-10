@@ -1,6 +1,6 @@
 import { HomeSidebar } from '@/src/components/features/home/HomeSidebar';
 
-export default function AdminLayout({
+export default function HomeLayout({
   children,
 }: {
   children: React.ReactNode;

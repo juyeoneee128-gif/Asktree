@@ -249,7 +249,6 @@ export interface Database {
         };
         Relationships: [];
       };
-    };
       ephemeral_data: {
         Row: {
           id: string;
