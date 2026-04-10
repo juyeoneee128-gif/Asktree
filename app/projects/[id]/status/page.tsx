@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { useParams } from 'next/navigation';
 import { Folder, RefreshCw } from 'lucide-react';
 import { GlobalHeader } from '@/src/components/layout/GlobalHeader';
 import { MasterDetailLayout } from '@/src/components/layout/MasterDetailLayout';
@@ -14,6 +15,10 @@ import { FeatureDetailPanel } from '@/src/components/features/status/FeatureDeta
 import { mockFeatures, type Feature } from '@/src/lib/mock-data';
 
 export default function StatusPage() {
+  const params = useParams<{ id: string }>();
+  const projectId = params?.id;
+  const issuesHref = projectId ? `/projects/${projectId}/issues` : '/projects';
+
   const [features] = useState<Feature[]>(mockFeatures);
   const [selectedId, setSelectedId] = useState<string | null>(features[0]?.id ?? null);
   const [analyzeModalOpen, setAnalyzeModalOpen] = useState(false);
@@ -124,6 +129,7 @@ export default function StatusPage() {
           detailContent={
             <FeatureDetailPanel
               feature={selectedFeature}
+              issuesHref={issuesHref}
               onUploadDoc={() => {}}
             />
           }

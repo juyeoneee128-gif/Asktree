@@ -1,11 +1,14 @@
 'use client';
 
-import { Check, Square, AlertTriangle, FileText, Upload } from 'lucide-react';
+import Link from 'next/link';
+import { Check, Square, AlertTriangle, FileText, Upload, ArrowRight } from 'lucide-react';
 import { Button } from '@/src/components/ui/Button';
 import type { Feature, FeatureStatus } from '@/src/lib/mock-data';
 
 export interface FeatureDetailPanelProps {
   feature: Feature | null;
+  /** "확인 필요" 박스의 → 이슈 탭 이동 링크 */
+  issuesHref?: string;
   onUploadDoc?: () => void;
 }
 
@@ -30,7 +33,7 @@ const statusIcon: Record<FeatureStatus, string> = {
   unimplemented: '○',
 };
 
-export function FeatureDetailPanel({ feature, onUploadDoc }: FeatureDetailPanelProps) {
+export function FeatureDetailPanel({ feature, issuesHref, onUploadDoc }: FeatureDetailPanelProps) {
   if (!feature) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -161,14 +164,14 @@ export function FeatureDetailPanel({ feature, onUploadDoc }: FeatureDetailPanelP
       {/* Attention warning box (only for attention status) */}
       {feature.status === 'attention' && (
         <div
-          className="rounded-xl"
+          className="rounded-xl flex flex-col gap-2"
           style={{
             backgroundColor: '#FEF2F2',
             border: '1px solid #FECACA',
             padding: 16,
           }}
         >
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2">
             <AlertTriangle size={14} className="text-destructive" />
             <span
               style={{
@@ -177,12 +180,22 @@ export function FeatureDetailPanel({ feature, onUploadDoc }: FeatureDetailPanelP
                 color: '#DC2626',
               }}
             >
-              확인 필요 1건
+              확인 필요 {feature.issueCount}건
             </span>
           </div>
           <p style={{ fontSize: 13, color: '#7F1D1D', lineHeight: 1.5 }}>
             기획서에는 수수료 계산식이 명시되어 있으나, 코드에서 일치되지 않은 부분이 있습니다.
           </p>
+          {issuesHref && (
+            <Link
+              href={issuesHref}
+              className="inline-flex items-center gap-1 text-primary hover:underline self-start"
+              style={{ fontSize: 13, fontWeight: 500 }}
+            >
+              <ArrowRight size={13} />
+              이슈에서 복구명령어 확인
+            </Link>
+          )}
         </div>
       )}
 
