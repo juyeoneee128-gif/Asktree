@@ -264,86 +264,323 @@ export const mockFeatures: Feature[] = [
 
 // ─── 세션 ───
 
+export type SessionLogEntry =
+  | { type: 'user'; content: string }
+  | { type: 'assistant'; content: string }
+  | {
+      type: 'tool';
+      action: string;
+      file?: string;
+      lines?: { kind: 'add' | 'remove' | 'info'; text: string }[];
+    };
+
 export interface Session {
   id: string;
   number: number;
   title: string;
   date: string;
   filesChanged: number;
+  toolUseCount: number;
+  hasIssue?: boolean;
   summary: string;
   changedFiles: { name: string; type: 'new' | 'modified' }[];
   prompts: string[];
-  rawLog: string;
+  log: SessionLogEntry[];
 }
 
 export const mockSessions: Session[] = [
   {
-    id: 'session-12',
-    number: 12,
-    title: '인증 시스템 구현',
-    date: '2026-04-03 14:30',
-    filesChanged: 5,
-    summary: 'Google OAuth 로그인을 구현하고, NextAuth 설정을 완료했습니다. 세션 관리와 로그아웃 기능을 추가했습니다.',
+    id: 'session-9',
+    number: 9,
+    title: '대시보드 리팩토링',
+    date: '오늘 14:20',
+    filesChanged: 2,
+    toolUseCount: 6,
+    hasIssue: true,
+    summary: '대시보드 카드 컴포넌트를 분리하고 props 구조를 단순화했습니다. 다만 일부 영역에서 hardcoded 값이 남아 후속 분석이 필요합니다.',
     changedFiles: [
-      { name: 'src/app/api/auth/[...nextauth]/route.ts', type: 'new' },
-      { name: 'src/lib/auth.ts', type: 'new' },
-      { name: 'src/middleware.ts', type: 'modified' },
-      { name: 'package.json', type: 'modified' },
-      { name: '.env.local', type: 'modified' },
+      { name: 'app/dashboard/page.tsx', type: 'modified' },
+      { name: 'components/DashboardCard.tsx', type: 'new' },
     ],
     prompts: [
-      'Google OAuth 로그인을 구현해줘. NextAuth를 사용해서.',
-      '세션 미들웨어를 추가해줘. /api/* 경로는 인증이 필요하게.',
+      '대시보드의 카드 영역을 별도 컴포넌트로 분리해줘.',
     ],
-    rawLog: '> User: Google OAuth 로그인을 구현해줘...\n> Assistant: NextAuth.js를 설정하겠습니다...\n> [파일 생성] src/app/api/auth/[...nextauth]/route.ts\n> ...',
+    log: [
+      { type: 'user', content: '대시보드의 카드 영역을 별도 컴포넌트로 분리해줘.' },
+      { type: 'assistant', content: '카드 부분을 DashboardCard 컴포넌트로 추출하고, props로 title/value/trend 를 받도록 정리하겠습니다.' },
+      {
+        type: 'tool',
+        action: 'Create file',
+        file: 'components/DashboardCard.tsx',
+        lines: [
+          { kind: 'info', text: '  + DashboardCard({ title, value, trend })' },
+          { kind: 'info', text: '  + 트렌드 화살표 아이콘 처리' },
+        ],
+      },
+      {
+        type: 'tool',
+        action: 'Edit file',
+        file: 'app/dashboard/page.tsx',
+        lines: [
+          { kind: 'remove', text: '  - 인라인 카드 마크업 4블록' },
+          { kind: 'add', text: '  + DashboardCard 인스턴스 4개로 교체' },
+        ],
+      },
+    ],
   },
   {
-    id: 'session-11',
-    number: 11,
-    title: '프로젝트 카드 UI 구현',
-    date: '2026-04-02 16:00',
+    id: 'session-8',
+    number: 8,
+    title: '거래 입력 기능 추가',
+    date: '오늘 11:05',
     filesChanged: 3,
-    summary: '프로젝트 메인 홈의 카드 그리드 레이아웃을 구현했습니다.',
+    toolUseCount: 7,
+    summary: '거래 입력 테이블에 행 추가, 수정, 삭제 기능과 기간 필터를 구현했습니다.',
     changedFiles: [
-      { name: 'src/app/projects/page.tsx', type: 'modified' },
-      { name: 'src/components/ProjectCard.tsx', type: 'new' },
-      { name: 'src/styles/globals.css', type: 'modified' },
+      { name: 'transactions/page.tsx', type: 'new' },
+      { name: 'lib/transaction-api.ts', type: 'new' },
+      { name: 'components/Table.tsx', type: 'modified' },
     ],
     prompts: [
-      '프로젝트 메인 페이지에 카드 그리드를 만들어줘.',
+      '거래 내역을 입력하고 수정할 수 있는 테이블을 만들어줘. 기간 필터도 넣어줘.',
     ],
-    rawLog: '> User: 프로젝트 메인 페이지에 카드 그리드를 만들어줘...\n> Assistant: 프로젝트 카드 컴포넌트를 만들겠습니다...\n> ...',
+    log: [
+      {
+        type: 'user',
+        content: '거래 내역을 입력하고 수정할 수 있는 테이블을 만들어줘. 기간 필터도 넣어줘.',
+      },
+      {
+        type: 'assistant',
+        content:
+          "I'll create a transaction input table with CRUD functionality and a date range filter. Let me start by setting up the database schema and API routes.",
+      },
+      {
+        type: 'tool',
+        action: 'Create file',
+        file: 'lib/transaction-api.ts',
+        lines: [
+          { kind: 'info', text: '  + createTransaction(data)' },
+          { kind: 'info', text: '  + updateTransaction(id, data)' },
+          { kind: 'info', text: '  + deleteTransaction(id)' },
+          { kind: 'info', text: '  + getTransactions(dateRange)' },
+        ],
+      },
+      {
+        type: 'tool',
+        action: 'Create file',
+        file: 'transactions/page.tsx',
+        lines: [
+          { kind: 'info', text: '  + TransactionTable component' },
+          { kind: 'info', text: '  + DateRangeFilter component' },
+          { kind: 'info', text: '  + AddRowButton, EditModal, DeleteConfirm' },
+        ],
+      },
+      {
+        type: 'tool',
+        action: 'Edit file',
+        file: 'components/Table.tsx',
+        lines: [
+          { kind: 'remove', text: '  - Removed hardcoded columns' },
+          { kind: 'add', text: '  + Added dynamic column config' },
+          { kind: 'add', text: '  + Added sortable headers' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'session-7',
+    number: 7,
+    title: '수수료 정책 구현',
+    date: '어제 16:30',
+    filesChanged: 1,
+    toolUseCount: 3,
+    summary: '거래 금액에 따른 수수료 계산 로직을 추가했습니다.',
+    changedFiles: [{ name: 'lib/fee-policy.ts', type: 'new' }],
+    prompts: ['거래 금액별 수수료 정책을 적용해줘.'],
+    log: [
+      { type: 'user', content: '거래 금액별 수수료 정책을 적용해줘.' },
+      { type: 'assistant', content: '구간별 수수료 테이블을 만들고 함수로 계산하도록 구현하겠습니다.' },
+      {
+        type: 'tool',
+        action: 'Create file',
+        file: 'lib/fee-policy.ts',
+        lines: [
+          { kind: 'info', text: '  + FEE_TIERS 상수' },
+          { kind: 'info', text: '  + calculateFee(amount)' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'session-6',
+    number: 6,
+    title: '거래처 등록 기능 구현',
+    date: '어제 10:15',
+    filesChanged: 4,
+    toolUseCount: 9,
+    summary: '거래처 CRUD와 검색/필터 기능을 추가했습니다.',
+    changedFiles: [
+      { name: 'partners/page.tsx', type: 'new' },
+      { name: 'lib/partner-api.ts', type: 'new' },
+      { name: 'components/SearchBox.tsx', type: 'new' },
+      { name: 'components/Sidebar.tsx', type: 'modified' },
+    ],
+    prompts: ['거래처를 등록/검색할 수 있는 페이지를 만들어줘.'],
+    log: [
+      { type: 'user', content: '거래처를 등록/검색할 수 있는 페이지를 만들어줘.' },
+      { type: 'assistant', content: '거래처 페이지와 API 모듈, 그리고 공용 검색 박스 컴포넌트를 만들겠습니다.' },
+      {
+        type: 'tool',
+        action: 'Create file',
+        file: 'partners/page.tsx',
+        lines: [{ kind: 'info', text: '  + PartnersPage 라우트' }],
+      },
+      {
+        type: 'tool',
+        action: 'Create file',
+        file: 'lib/partner-api.ts',
+        lines: [
+          { kind: 'info', text: '  + listPartners()' },
+          { kind: 'info', text: '  + createPartner()' },
+        ],
+      },
+    ],
+  },
+  {
+    id: 'session-5',
+    number: 5,
+    title: '인증 설정',
+    date: '3/15 14:00',
+    filesChanged: 2,
+    toolUseCount: 5,
+    summary: 'Google OAuth 로그인을 연결하고 세션 미들웨어를 추가했습니다.',
+    changedFiles: [
+      { name: 'app/api/auth/[...nextauth]/route.ts', type: 'new' },
+      { name: 'middleware.ts', type: 'modified' },
+    ],
+    prompts: ['NextAuth로 Google OAuth를 붙여줘.'],
+    log: [
+      { type: 'user', content: 'NextAuth로 Google OAuth를 붙여줘.' },
+      { type: 'assistant', content: 'NextAuth providers에 Google을 추가하고 미들웨어로 보호하겠습니다.' },
+    ],
+  },
+  {
+    id: 'session-4',
+    number: 4,
+    title: '프로젝트 초기 세팅',
+    date: '3/15 09:30',
+    filesChanged: 3,
+    toolUseCount: 4,
+    summary: '디렉토리 구조를 정리하고 기본 라우트를 만들었습니다.',
+    changedFiles: [
+      { name: 'app/layout.tsx', type: 'modified' },
+      { name: 'app/page.tsx', type: 'new' },
+      { name: 'next.config.ts', type: 'modified' },
+    ],
+    prompts: ['App Router 기준으로 기본 폴더 구조를 잡아줘.'],
+    log: [
+      { type: 'user', content: 'App Router 기준으로 기본 폴더 구조를 잡아줘.' },
+      { type: 'assistant', content: 'app/ 하위 라우트와 layout, page 파일을 정리했습니다.' },
+    ],
+  },
+  {
+    id: 'session-3',
+    number: 3,
+    title: 'DB 스키마 설계',
+    date: '3/14 15:00',
+    filesChanged: 2,
+    toolUseCount: 3,
+    summary: 'Supabase에 users, projects 테이블을 생성하는 마이그레이션을 작성했습니다.',
+    changedFiles: [
+      { name: 'supabase/migrations/001_init.sql', type: 'new' },
+      { name: 'lib/types.ts', type: 'modified' },
+    ],
+    prompts: ['users, projects 테이블 스키마를 만들어줘.'],
+    log: [
+      { type: 'user', content: 'users, projects 테이블 스키마를 만들어줘.' },
+      { type: 'assistant', content: 'PK/FK 관계와 created_at 컬럼을 포함해 마이그레이션을 작성했습니다.' },
+    ],
+  },
+  {
+    id: 'session-2',
+    number: 2,
+    title: 'UI 프레임워크 설정',
+    date: '3/14 10:00',
+    filesChanged: 5,
+    toolUseCount: 6,
+    summary: 'Tailwind v4와 디자인 토큰을 설정하고 폰트를 적용했습니다.',
+    changedFiles: [
+      { name: 'app/globals.css', type: 'new' },
+      { name: 'tailwind.config.ts', type: 'new' },
+      { name: 'app/layout.tsx', type: 'modified' },
+      { name: 'package.json', type: 'modified' },
+      { name: 'postcss.config.js', type: 'new' },
+    ],
+    prompts: ['Tailwind v4와 Pretendard 폰트를 적용해줘.'],
+    log: [
+      { type: 'user', content: 'Tailwind v4와 Pretendard 폰트를 적용해줘.' },
+      { type: 'assistant', content: 'globals.css에 디자인 토큰을 정의하고 layout에 폰트를 연결했습니다.' },
+    ],
+  },
+  {
+    id: 'session-1',
+    number: 1,
+    title: '프로젝트 생성',
+    date: '3/13 14:00 · 첫 분석',
+    filesChanged: 0,
+    toolUseCount: 1,
+    summary: 'Next.js 프로젝트를 새로 만들고 Asktree 에이전트를 연결했습니다.',
+    changedFiles: [],
+    prompts: ['Next.js 16 프로젝트를 만들어줘.'],
+    log: [
+      { type: 'user', content: 'Next.js 16 프로젝트를 만들어줘.' },
+      { type: 'assistant', content: 'create-next-app 으로 새 프로젝트를 생성했습니다.' },
+    ],
   },
 ];
 
 // ─── 기획서 ───
 
+export type SpecDocType = 'FRD' | 'PRD';
+
 export interface SpecDocument {
   id: string;
   name: string;
   uploadedAt: string;
-  type: 'FRD' | 'PRD';
+  type: SpecDocType;
 }
 
 export interface SpecFeature {
   id: string;
   name: string;
-  source: 'FRD' | 'PRD';
+  /** 이 기능이 추출된 문서의 종류들 (한 기능이 여러 문서에 등장할 수 있음) */
+  sources: SpecDocType[];
   status: FeatureStatus;
 }
 
 export const mockSpecDocuments: SpecDocument[] = [
-  { id: 'doc-1', name: 'Asktree PRD v9.0.pdf', uploadedAt: '2026-04-01', type: 'PRD' },
-  { id: 'doc-2', name: '기능명세서 v9.0.pdf', uploadedAt: '2026-04-01', type: 'FRD' },
+  {
+    id: 'doc-1',
+    name: 'MVP_기능정의서_FRD_v1.0.md',
+    uploadedAt: '2026.03.10',
+    type: 'FRD',
+  },
+  {
+    id: 'doc-2',
+    name: 'Asktree_PRD_v6.0.md',
+    uploadedAt: '2026.03.17',
+    type: 'PRD',
+  },
 ];
 
 export const mockSpecFeatures: SpecFeature[] = [
-  { id: 'sf-1', name: '자동 코드 파손 감지', source: 'PRD', status: 'implemented' },
-  { id: 'sf-2', name: 'Fix 명령어 생성', source: 'PRD', status: 'implemented' },
-  { id: 'sf-3', name: 'CLAUDE.md 보호 규칙 생성', source: 'PRD', status: 'partial' },
-  { id: 'sf-4', name: 'PRD 대비 구현 현황', source: 'FRD', status: 'partial' },
-  { id: 'sf-5', name: '세션 로그 수집/분석', source: 'FRD', status: 'implemented' },
-  { id: 'sf-6', name: '결제 시스템', source: 'PRD', status: 'unimplemented' },
+  { id: 'sf-1', name: '거래처 등록/관리', sources: ['FRD'], status: 'implemented' },
+  { id: 'sf-2', name: '인플루언서 구분/원천세 설정', sources: ['FRD'], status: 'unimplemented' },
+  { id: 'sf-3', name: '판매수수료 정책 관리', sources: ['FRD'], status: 'implemented' },
+  { id: 'sf-4', name: '거래 입력 테이블', sources: ['FRD'], status: 'partial' },
+  { id: 'sf-5', name: '집계/리포트', sources: ['PRD'], status: 'implemented' },
+  { id: 'sf-6', name: '발행(지시) 리스트', sources: ['PRD'], status: 'implemented' },
+  { id: 'sf-7', name: '세금 체크리스트 + 알림', sources: ['FRD', 'PRD'], status: 'unimplemented' },
 ];
 
 // ─── 사용자 ───
