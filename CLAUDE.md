@@ -264,46 +264,47 @@ RootLayout (app/layout.tsx)
 - 사용 컴포넌트: Sidebar, GlobalHeader
 - 신규: HomeSidebar, ProjectLayout
 
-#### Phase 1: 프로젝트 메인 홈 (1일)
+#### Phase 1: 프로젝트 메인 홈 (1일) ✅ 완료
 
 - 사용 컴포넌트: Card, StatusDot, Dropdown, Badge, EmptyState, Button
 - 신규: ProjectCard (Card 확장)
 - mock: `Project { id, name, agentStatus, lastAnalysis, issueCount, implementationRate }`
 
-#### Phase 2: [이슈] 탭 (2~2.5일)
+#### Phase 2: [이슈] 탭 (2~2.5일) ✅ 완료
 
 - 6개 뷰 + 모달 1개
 - 사용 컴포넌트: MasterDetailLayout, SectionHeader, ListItem, Badge, FactCard, FixBox, TechDetailCard, Button, Modal, CodeBlock, EmptyState
 - 신규: IssueDetailPanel, IssueListSection
 - mock: `Issue { id, title, level, status, fact, detail, fixCommand, file, basis, detectedAt, isRedetected }`
 
-#### Phase 3: CLAUDE.md 탭 (1일)
+#### Phase 3: CLAUDE.md 탭 (1일) ✅ 완료
 
 - 3개 뷰 + 모달 2개
 - 사용 컴포넌트: MasterDetailLayout, SectionHeader, ListItem, CodeBlock, Button, Modal, EmptyState
-- 신규: GuidelineDetailPanel
+- 신규: GuidelineDetailPanel, GuidelineListSection, FullPreviewModal
 - mock: `Guideline { id, title, rule, status, sourceIssueId, detectedAt }`
 
-#### Phase 4: [현황] 탭 (2일)
+#### Phase 4: [현황] 탭 (2일) ✅ 완료
 
 - 7개 뷰 + 배너 2개 + 모달 2개
 - 사용 컴포넌트: MasterDetailLayout, ListItem, StatusDot, Tooltip, MetricCard, Card, Badge, TextLink, AlertBanner, Modal, EmptyState
 - 신규: FeatureDetailPanel, FeatureListItem
 - mock: `Feature { id, name, status, implementedItems, totalItems, issueCount, lastSession, techStack, relatedFiles, prdSummary }`
 
-#### Phase 5: [세션] 탭 (1일)
+#### Phase 5: [세션] 탭 (1일) ✅ 완료
 
-- 3개 뷰
-- 사용 컴포넌트: MasterDetailLayout, ListItem, Card, Badge, CodeBlock, EmptyState
-- 신규: SessionDetailPanel
-- mock: `Session { id, number, title, date, filesChanged, summary, changedFiles, prompts, rawLog }`
+- 3개 뷰 (요약 / 세션 로그 / 빈 상태)
+- 사용 컴포넌트: MasterDetailLayout, Card, EmptyState
+- 신규: SessionDetailPanel (요약/로그 탭 + claude-replay 스타일 다크 터미널 로그 뷰어)
+- mock: `Session { id, number, title, date, filesChanged, toolUseCount, hasIssue?, summary, changedFiles, prompts, log: SessionLogEntry[] }` — `SessionLogEntry`는 user/assistant/tool 구분 + add/remove/info 라인 컬러링
 
-#### Phase 6: 기획서 탭 (1일)
+#### Phase 6: 기획서 탭 (1일) ✅ 완료
 
-- 2개 뷰 + 모달 2개 + 드롭다운
-- 사용 컴포넌트: MasterDetailLayout, ListItem, Badge, StatusDot, Dropdown, Modal, EmptyState
-- 신규: SpecFeatureList
-- mock: `SpecDocument { id, name, uploadedAt, type }`, `SpecFeature { id, name, source, status }`
+- 2개 뷰 + 모달 1개 + 드롭다운(삭제만)
+- 사용 컴포넌트: MasterDetailLayout, Dropdown, Modal, Button
+- 신규: SpecDocList(FRD/PRD pill + ⋮ 삭제), SpecFeatureList(읽기 전용), SpecUploadModal(텍스트 붙여넣기)
+- mock: `SpecDocument { id, name, uploadedAt, type }`, `SpecFeature { id, name, sources: SpecDocType[], status }` — 한 기능이 여러 문서에 등장 가능
+- MVP 정책: 기능 목록은 읽기 전용 (편집/추가 없음), 문서 교체는 삭제 후 재추가, 파일 업로드는 Phase 2 (현재 텍스트 붙여넣기만)
 
 #### Phase 7: 설정 (1.5일)
 
@@ -328,17 +329,21 @@ src/components/features/          ← 신규 페이지 전용 컴포넌트
   │   ├── IssueDetailPanel.tsx
   │   └── IssueListSection.tsx
   ├── claude-md/
-  │   └── GuidelineDetailPanel.tsx
+  │   ├── GuidelineDetailPanel.tsx
+  │   ├── GuidelineListSection.tsx
+  │   └── FullPreviewModal.tsx
   ├── status/
   │   ├── FeatureDetailPanel.tsx
   │   └── FeatureListItem.tsx
   ├── sessions/
   │   └── SessionDetailPanel.tsx
   ├── specs/
-  │   └── SpecFeatureList.tsx
+  │   ├── SpecDocList.tsx
+  │   ├── SpecFeatureList.tsx
+  │   └── SpecUploadModal.tsx
   ├── home/
   │   └── ProjectCard.tsx
-  └── onboarding/
+  └── onboarding/                  ← 🔲 Phase 8 예정
       ├── OnboardingLayout.tsx
       └── FileUploadArea.tsx
 ```
@@ -355,18 +360,33 @@ src/components/features/          ← 신규 페이지 전용 컴포넌트
 
 ### 6. 총 예상 작업량: 약 12.5일
 
-| Phase | 작업량 |
-|-------|--------|
-| Phase 0: 공통 레이아웃 | 0.5일 ✅ |
-| Phase 1: 프로젝트 홈 | 1일 |
-| Phase 2: 이슈 탭 | 2.5일 |
-| Phase 3: CLAUDE.md 탭 | 1일 |
-| Phase 4: 현황 탭 | 2일 |
-| Phase 5: 세션 탭 | 1일 |
-| Phase 6: 기획서 탭 | 1일 |
-| Phase 7: 설정 | 1.5일 |
-| Phase 8: 온보딩 | 1.5일 |
-| Phase 9: 공통 시스템 | 0.5일 |
+| Phase | 작업량 | 상태 |
+|-------|--------|------|
+| Phase 0: 공통 레이아웃 | 0.5일 | ✅ 완료 |
+| Phase 1: 프로젝트 홈 | 1일 | ✅ 완료 |
+| Phase 2: 이슈 탭 | 2.5일 | ✅ 완료 |
+| Phase 3: CLAUDE.md 탭 | 1일 | ✅ 완료 |
+| Phase 4: 현황 탭 | 2일 | ✅ 완료 |
+| Phase 5: 세션 탭 | 1일 | ✅ 완료 |
+| Phase 6: 기획서 탭 | 1일 | ✅ 완료 |
+| Phase 7: 설정 | 1.5일 | 🔲 대기 |
+| Phase 8: 온보딩 | 1.5일 | 🔲 대기 |
+| Phase 9: 공통 시스템 | 0.5일 | 🔲 대기 |
+
+### 7. 진행 현황
+
+| Phase | 상태 | 완료일 | 주요 산출물 |
+|-------|------|--------|------------|
+| Phase 0 | ✅ 완료 | 2026-04-03 | RootLayout, Sidebar, GlobalHeader, MasterDetailLayout, 라우팅 뼈대 |
+| Phase 1 | ✅ 완료 | 2026-04-10 | 프로젝트 카드 그리드(`features/home/ProjectCard`), 프로젝트 목록 페이지 |
+| Phase 2 | ✅ 완료 | 2026-04-10 | 이슈 탭(미확인/확인/해결 3섹션), `IssueListSection`, `IssueDetailPanel`(Fact→Detail→Fix→기술근거), 보호 규칙 제안 모달 |
+| Phase 3 | ✅ 완료 | 2026-04-10 | CLAUDE.md 탭(미적용/적용 2섹션), `GuidelineDetailPanel`, `GuidelineListSection`, `FullPreviewModal`(터미널 스타일) |
+| Phase 4 | ✅ 완료 | 2026-04-10 | 현황 탭, `FeatureListItem`, `FeatureDetailPanel`(메트릭 카드 + 구현 항목 + PRD 참고 + 기술 상세) |
+| Phase 5 | ✅ 완료 | 2026-04-10 | 세션 탭(평면 리스트), `SessionDetailPanel`(요약/세션 로그 탭), claude-replay 스타일 다크 터미널 로그 뷰어, EmptyState |
+| Phase 6 | ✅ 완료 | 2026-04-10 | 기획서 탭, `SpecDocList`(FRD/PRD pill + ⋮ 삭제 메뉴), `SpecFeatureList`(읽기 전용 통합 기능 목록), `SpecUploadModal`(텍스트 붙여넣기 방식) |
+| Phase 7 | 🔲 대기 | - | 프로젝트 설정 + 관리자 설정(`/admin`), SettingsCardGrid 재사용 |
+| Phase 8 | 🔲 대기 | - | 온보딩 Step 1~3, `OnboardingLayout`, `FileUploadArea` |
+| Phase 9 | 🔲 대기 | - | 404/500/스켈레톤/세션 만료, 공통 시스템 마무리 |
 
 ---
 
@@ -492,8 +512,8 @@ app/api/
 |------|------|--------|------------|
 | Tier 0 | ✅ 완료 | 2026-04-03 | 7개 테이블 스키마(001_initial.sql), Supabase Auth(client/server/middleware), Google OAuth 로그인/콜백, DB 타입(types.ts) |
 | Tier 1 | ✅ 완료 | 2026-04-03 | 프로젝트 CRUD API(GET/POST/PATCH/DELETE), 로그아웃(POST /auth/logout) |
-| Tier 2 | 🔲 대기 | - | 에이전트 데이터 수신 API, 세션 파싱, Ephemeral Processing |
-| Tier 3 | 🔲 대기 | - | 정적 분석, 세션 간 비교, 이슈/Fix/보호 규칙 생성, Claude API 연동 |
-| Tier 4 | 🔲 대기 | - | 이슈/가이드라인 CRUD API, 분석 실행 트리거 |
-| Tier 5 | 🔲 대기 | - | 기획서 업로드/기능 추출, PRD vs 코드 대조, Reverse IA |
-| Tier 6 | 🔲 대기 | - | 크레딧 관리, API 키 암호화, 계정 관리 |
+| Tier 2 | ✅ 완료 | 2026-04-09 | 에이전트 데이터 수신 API(`/api/agent/push`), JSONL 세션 파싱, diff 파일 경로 → `sessions.changed_files` 병합, Ephemeral Processing |
+| Tier 3 | ✅ 완료 | 2026-04-10 | 정적 분석 + 세션 간 비교, 이슈/Fix/보호 규칙 생성, Claude API 연동, 분석 엔진 고도화(테스트 1~3), maxTokens 버그 수정 |
+| Tier 4 | ✅ 완료 | 2026-04-09 | 이슈/가이드라인 CRUD API, 상태 전이(미확인↔확인↔해결), 분석 실행 트리거, 예상 크레딧 추정 |
+| Tier 5 | ✅ 완료 | 2026-04-09 | 기획서 업로드/기능 추출, PRD vs 코드 대조(현황 감리), Reverse IA |
+| Tier 6 | ✅ 완료 | 2026-04-10 | 크레딧 관리(잔여/차감/내역), API 키 AES-256 암호화(pgcrypto), 계정 관리(프로필/삭제 cascade) |
