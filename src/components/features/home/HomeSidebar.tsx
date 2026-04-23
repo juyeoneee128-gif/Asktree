@@ -22,8 +22,19 @@ const bottomMenuItems = [
   { key: '/admin/credits', label: '플랜 및 결제', icon: CreditCard },
 ];
 
-export function HomeSidebar() {
+export interface HomeSidebarUser {
+  name: string;
+  email: string;
+  avatar_url: string | null;
+}
+
+export interface HomeSidebarProps {
+  user: HomeSidebarUser;
+}
+
+export function HomeSidebar({ user }: HomeSidebarProps) {
   const pathname = usePathname();
+  const initial = (user.name || user.email || '?').trim().charAt(0).toUpperCase();
 
   return (
     <aside className="flex flex-col h-full w-[220px] bg-background border-r border-border shrink-0">
@@ -84,15 +95,38 @@ export function HomeSidebar() {
             </Link>
           );
         })}
+      </div>
 
-        {/* Logout */}
+      {/* User block */}
+      <div className="border-t border-border px-4 py-3 flex items-center gap-2.5">
+        {user.avatar_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={user.avatar_url}
+            alt={user.name || user.email}
+            referrerPolicy="no-referrer"
+            className="w-8 h-8 rounded-full object-cover shrink-0"
+          />
+        ) : (
+          <div className="w-8 h-8 rounded-full bg-muted text-foreground text-[13px] font-semibold flex items-center justify-center shrink-0">
+            {initial}
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          <div className="text-[13px] font-semibold text-foreground truncate">
+            {user.name || user.email.split('@')[0]}
+          </div>
+          <div className="text-[11px] text-muted-foreground truncate">
+            {user.email}
+          </div>
+        </div>
         <form action="/auth/logout" method="POST">
           <button
             type="submit"
-            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-[14px] text-muted-foreground hover:bg-muted transition-colors cursor-pointer"
+            aria-label="로그아웃"
+            className="p-1.5 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
           >
-            <LogOut size={18} />
-            <span>로그아웃</span>
+            <LogOut size={16} />
           </button>
         </form>
       </div>
