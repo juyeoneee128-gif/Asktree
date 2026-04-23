@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import { Shield, Eye, ShieldCheck, TriangleAlert } from 'lucide-react';
 import { GlobalHeader } from '@/src/components/layout/GlobalHeader';
 import { MasterDetailLayout } from '@/src/components/layout/MasterDetailLayout';
@@ -10,23 +11,56 @@ import { EmptyState } from '@/src/components/composite/EmptyState';
 import { GuidelineListSection } from '@/src/components/features/claude-md/GuidelineListSection';
 import { GuidelineDetailPanel } from '@/src/components/features/claude-md/GuidelineDetailPanel';
 import { FullPreviewModal } from '@/src/components/features/claude-md/FullPreviewModal';
-import { mockGuidelines, mockIssues, type Guideline, type Issue } from '@/src/lib/mock-data';
+import {
+  fetchGuidelines,
+  patchGuideline,
+  deleteGuideline,
+} from '@/src/lib/api/guidelines';
+import { fetchIssues } from '@/src/lib/api/issues';
+import type { Guideline, Issue } from '@/src/lib/mock-data';
 
 export default function ClaudeMdPage() {
-  const [guidelines, setGuidelines] = useState<Guideline[]>(mockGuidelines);
-  const [selectedId, setSelectedId] = useState<string | null>(
-    mockGuidelines.find((g) => g.status === 'unapplied')?.id ?? null
-  );
+  const params = useParams();
+  const router = useRouter();
+  const projectId = params.id as string;
+
+  const [guidelines, setGuidelines] = useState<Guideline[]>([]);
+  const [issuesById, setIssuesById] = useState<Record<string, Issue | undefined>>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
-  // sourceIssueId로 이슈 조회 가능한 맵
-  const issuesById = useMemo<Record<string, Issue | undefined>>(() => {
-    return mockIssues.reduce<Record<string, Issue | undefined>>((acc, issue) => {
-      acc[issue.id] = issue;
-      return acc;
-    }, {});
-  }, []);
+  const load = useCallback(async () => {
+    try {
+      setError(null);
+      const [guidelinesResult, issuesResult] = await Promise.all([
+        fetchGuidelines(projectId),
+        fetchIssues(projectId),
+      ]);
+      setGuidelines(guidelinesResult.guidelines);
+
+      const issueMap: Record<string, Issue | undefined> = {};
+      issuesResult.issues.forEach((i) => {
+        issueMap[i.id] = i;
+      });
+      setIssuesById(issueMap);
+
+      const firstUnapplied = guidelinesResult.guidelines.find(
+        (g) => g.status === 'unapplied'
+      );
+      setSelectedId(firstUnapplied?.id ?? guidelinesResult.guidelines[0]?.id ?? null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '데이터를 불러올 수 없습니다');
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const grouped = useMemo(() => {
     return {
@@ -40,29 +74,56 @@ export default function ClaudeMdPage() {
     [guidelines, selectedId]
   );
 
-  const selectedSourceIssue = selectedGuideline
-    ? issuesById[selectedGuideline.sourceIssueId] ?? null
-    : null;
+  const selectedSourceIssue =
+    selectedGuideline && selectedGuideline.sourceIssueId
+      ? issuesById[selectedGuideline.sourceIssueId] ?? null
+      : null;
 
   const deleteTarget = useMemo(
     () => guidelines.find((g) => g.id === deleteTargetId) ?? null,
     [guidelines, deleteTargetId]
   );
 
-  const handleApplyToClaudeMd = (id: string) => {
-    setGuidelines((prev) =>
-      prev.map((g) => (g.id === id ? { ...g, status: 'applied' as const } : g))
-    );
+  const handleApplyToClaudeMd = async (id: string) => {
+    try {
+      const updated = await patchGuideline(projectId, id, 'applied');
+      setGuidelines((prev) => prev.map((g) => (g.id === id ? updated : g)));
+      router.refresh();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'CLAUDE.md 추가에 실패했습니다');
+    }
   };
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (!deleteTargetId) return;
-    setGuidelines((prev) => prev.filter((g) => g.id !== deleteTargetId));
-    if (selectedId === deleteTargetId) setSelectedId(null);
-    setDeleteTargetId(null);
+    try {
+      await deleteGuideline(projectId, deleteTargetId);
+      setGuidelines((prev) => prev.filter((g) => g.id !== deleteTargetId));
+      if (selectedId === deleteTargetId) setSelectedId(null);
+      setDeleteTargetId(null);
+      router.refresh();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : '삭제에 실패했습니다');
+    }
   };
 
   const isEmpty = guidelines.length === 0;
+
+  if (loading) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <p className="text-[14px] text-muted-foreground">로딩 중...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <p className="text-[14px] text-destructive">{error}</p>
+      </div>
+    );
+  }
 
   return (
     <>

@@ -55,8 +55,11 @@ export function ProjectCard({ project, onClick, onEdit, onDelete }: ProjectCardP
           </div>
         </div>
 
-        {/* Menu button */}
-        <div className="relative shrink-0 -mt-1 -mr-1">
+        {/* Menu button — 이 영역 내부 클릭은 카드 전체 onClick으로 버블링 금지 */}
+        <div
+          className="relative shrink-0 -mt-1 -mr-1"
+          onClick={(e) => e.stopPropagation()}
+        >
           <button
             type="button"
             onClick={handleMenuClick}

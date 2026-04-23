@@ -47,6 +47,17 @@ export async function fetchProjects(): Promise<Project[]> {
   return rows.map(toProject);
 }
 
+/** 단일 프로젝트 조회 */
+export async function fetchProject(id: string): Promise<Project> {
+  const res = await fetch(`/api/projects/${id}`);
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error || '프로젝트를 불러올 수 없습니다');
+  }
+  const row: ProjectRow = await res.json();
+  return toProject(row);
+}
+
 /** 프로젝트 생성 */
 export async function createProject(name: string): Promise<Project> {
   const res = await fetch('/api/projects', {
