@@ -7,7 +7,6 @@ import {
   Star,
   Trash2,
   Settings,
-  CreditCard,
   LogOut,
 } from 'lucide-react';
 
@@ -19,7 +18,6 @@ const topMenuItems = [
 
 const bottomMenuItems = [
   { key: '/settings', label: '내 설정', icon: Settings },
-  { key: '/settings/credits', label: '플랜 및 결제', icon: CreditCard },
 ];
 
 export interface HomeSidebarUser {

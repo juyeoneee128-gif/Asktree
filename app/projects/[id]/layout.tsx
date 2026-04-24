@@ -21,17 +21,12 @@ export default async function ProjectLayout({
     notFound();
   }
 
-  const [projectRes, userRes, issueCountRes, guidelineCountRes] = await Promise.all([
+  const [projectRes, issueCountRes, guidelineCountRes] = await Promise.all([
     supabase
       .from('projects')
       .select('id, name, agent_status')
       .eq('id', id)
       .eq('user_id', authUser.id)
-      .single(),
-    supabase
-      .from('users')
-      .select('credits')
-      .eq('id', authUser.id)
       .single(),
     supabase
       .from('issues')
@@ -54,7 +49,6 @@ export default async function ProjectLayout({
       projectId={id}
       projectName={projectRes.data.name}
       agentStatus={projectRes.data.agent_status ?? 'disconnected'}
-      credits={userRes.data?.credits ?? 0}
       issueBadge={issueCountRes.count ?? 0}
       guidelineBadge={guidelineCountRes.count ?? 0}
     >

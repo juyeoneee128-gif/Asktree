@@ -16,7 +16,6 @@ export interface ProjectShellProps {
   projectId: string;
   projectName: string;
   agentStatus: AgentStatus;
-  credits: number;
   issueBadge: number;
   guidelineBadge: number;
   children: React.ReactNode;
@@ -26,7 +25,6 @@ export function ProjectShell({
   projectId,
   projectName,
   agentStatus,
-  credits,
   issueBadge,
   guidelineBadge,
   children,
@@ -57,10 +55,8 @@ export function ProjectShell({
         menuItems={menuItems}
         activeMenu={activeMenu}
         agentStatus={agentStatus}
-        credits={credits}
         onMenuClick={(key) => router.push(`/projects/${projectId}/${key}`)}
         onProjectSelect={() => router.push('/projects')}
-        onCreditClick={() => router.push('/settings/credits')}
       />
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         {children}

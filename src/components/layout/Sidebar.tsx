@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { Badge } from '../ui/Badge';
 
 export interface SidebarMenuItem {
@@ -17,10 +17,8 @@ export interface SidebarProps {
   menuItems: SidebarMenuItem[];
   activeMenu: string;
   agentStatus: AgentStatus;
-  credits: number;
   onMenuClick: (key: string) => void;
   onProjectSelect: () => void;
-  onCreditClick?: () => void;
 }
 
 export function Sidebar({
@@ -28,10 +26,8 @@ export function Sidebar({
   menuItems,
   activeMenu,
   agentStatus,
-  credits,
   onMenuClick,
   onProjectSelect,
-  onCreditClick,
 }: SidebarProps) {
   return (
     <aside className="flex flex-col h-full w-[220px] bg-background border-r border-border">
@@ -90,7 +86,7 @@ export function Sidebar({
       </nav>
 
       {/* Bottom section */}
-      <div className="border-t border-border px-4 py-3 space-y-2">
+      <div className="border-t border-border px-4 py-3">
         {/* Agent status */}
         <div className="flex items-center gap-2 text-[12px]">
           <span
@@ -103,18 +99,6 @@ export function Sidebar({
             {agentStatus === 'connected' ? '에이전트 연결됨' : '에이전트 미연결'}
           </span>
         </div>
-
-        {/* Credits mini card */}
-        <button
-          type="button"
-          onClick={onCreditClick}
-          className="w-full flex items-center justify-between bg-muted rounded-lg px-3 py-1.5 cursor-pointer hover:bg-gray-200 transition-colors"
-        >
-          <span className="text-[12px] text-muted-foreground">
-            크레딧: <span className="font-semibold text-foreground">{credits}</span>
-          </span>
-          <ChevronRight size={14} className="text-gray-400" />
-        </button>
       </div>
     </aside>
   );

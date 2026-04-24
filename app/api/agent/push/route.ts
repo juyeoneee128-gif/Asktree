@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
+import type { Database } from '@/src/lib/supabase/types';
 import { extractBearerToken, verifyAgentToken } from '@/src/lib/agent/auth-agent';
 import { validatePayload, validatePayloadSize, MAX_PAYLOAD_SIZE } from '@/src/lib/agent/validate-payload';
 import { parseSession } from '@/src/lib/agent/parse-session';
 import { saveSession, updateAgentStatus, mergeChangedFiles } from '@/src/lib/agent/save-session';
 import { saveEphemeralDiffs, saveEphemeralFileTree, cleanupExpiredEphemeral } from '@/src/lib/agent/ephemeral';
 import { runAnalysis } from '@/src/lib/analysis/run-analysis';
+import { assessFeatures } from '@/src/lib/specs/assess-features';
 
 // POST /api/agent/push — 에이전트 데이터 수신
 export async function POST(request: Request) {
@@ -126,12 +129,34 @@ export async function POST(request: Request) {
     console.error('[push] Agent status update failed:', (err as Error).message);
   }
 
-  // 10. 자동 분석 트리거 (비동기, 응답 차단 안 함 — userId 전달로 크레딧 체크/차감)
-  // 크레딧 부족 시 run-analysis 내부에서 skip + warnings 기록
+  // 10. 자동 분석 트리거 (비동기, 응답 차단 안 함)
+  // 기획서가 업로드된 프로젝트는 분석 후 자동으로 구현 현황 재판정
   if (payload.session_data.diffs && payload.session_data.diffs.length > 0) {
-    runAnalysis(payload.project_id, saved.id, authResult.user_id).catch((err) => {
-      console.error('[push] Auto analysis failed:', (err as Error).message);
-    });
+    (async () => {
+      try {
+        await runAnalysis(payload.project_id, saved.id);
+
+        const adminClient = createClient<Database>(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY!
+        );
+        const { count, error: countError } = await adminClient
+          .from('spec_features')
+          .select('id', { count: 'exact', head: true })
+          .eq('project_id', payload.project_id);
+
+        if (countError) {
+          console.error('[push] spec_features count failed:', countError.message);
+          return;
+        }
+
+        if (count && count > 0) {
+          await assessFeatures(payload.project_id);
+        }
+      } catch (err) {
+        console.error('[push] Auto analysis failed:', (err as Error).message);
+      }
+    })();
   }
 
   // 11. 기회적 삭제 (만료된 ephemeral 정리, fire-and-forget)

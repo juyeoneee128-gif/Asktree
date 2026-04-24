@@ -5,7 +5,6 @@ import { saveDetectedIssues } from './save-issues';
 import type { DetectedIssue } from './parse-response';
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '../supabase/types';
-import { checkCredits, deductCredit, InsufficientCreditsError } from '../credits/deduct';
 
 function createAdminClient() {
   return createClient<Database>(
@@ -38,30 +37,11 @@ interface DiffItem {
  */
 export async function runAnalysis(
   projectId: string,
-  sessionId: string,
-  userId?: string
+  sessionId: string
 ): Promise<AnalysisRunResult> {
   const warnings: string[] = [];
   let totalInput = 0;
   let totalOutput = 0;
-
-  // 0. 크레딧 확인 (userId가 제공된 경우)
-  if (userId) {
-    try {
-      await checkCredits(userId, 1);
-    } catch (err) {
-      if (err instanceof InsufficientCreditsError) {
-        return {
-          issues_created: 0,
-          issues_redetected: 0,
-          total_issues_found: 0,
-          token_usage: { input: 0, output: 0 },
-          warnings: [`크레딧이 부족합니다 (잔여: ${err.remaining})`],
-        };
-      }
-      throw err;
-    }
-  }
 
   // 1. ephemeral diff 로드 (메모리에 보관 — 분석 중 cron 삭제 대비)
   const ephemeralRows = await getEphemeral(sessionId);
@@ -153,16 +133,6 @@ export async function runAnalysis(
     await deleteEphemeral(sessionId);
   } catch (err) {
     warnings.push(`Ephemeral cleanup failed: ${(err as Error).message}`);
-  }
-
-  // 6. 크레딧 차감 (분석 완료 후, userId가 제공된 경우)
-  if (userId && allIssues.length >= 0) {
-    try {
-      const { remaining } = await deductCredit(userId, 1);
-      warnings.push(`크레딧 1 차감 (잔여: ${remaining})`);
-    } catch (err) {
-      warnings.push(`크레딧 차감 실패: ${(err as Error).message}`);
-    }
   }
 
   return {

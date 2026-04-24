@@ -8,7 +8,6 @@ import { MasterDetailLayout } from '@/src/components/layout/MasterDetailLayout';
 import { Button } from '@/src/components/ui/Button';
 import { ProgressBar } from '@/src/components/ui/ProgressBar';
 import { Badge } from '@/src/components/ui/Badge';
-import { Modal } from '@/src/components/ui/Modal';
 import { EmptyState } from '@/src/components/composite/EmptyState';
 import { FeatureListItem } from '@/src/components/features/status/FeatureListItem';
 import { FeatureDetailPanel } from '@/src/components/features/status/FeatureDetailPanel';
@@ -26,7 +25,6 @@ export default function StatusPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [analyzeModalOpen, setAnalyzeModalOpen] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
 
   const load = useCallback(async () => {
@@ -68,11 +66,10 @@ export default function StatusPage() {
   }, [features]);
 
   const handleAnalyze = async () => {
-    if (!projectId) return;
+    if (!projectId || analyzing) return;
     try {
       setAnalyzing(true);
       await assessFeatures(projectId);
-      setAnalyzeModalOpen(false);
       await load();
       router.refresh();
     } catch (e) {
@@ -135,10 +132,11 @@ export default function StatusPage() {
                 variant="outline"
                 size="sm"
                 className="gap-1.5"
-                onClick={() => setAnalyzeModalOpen(true)}
+                onClick={handleAnalyze}
+                disabled={analyzing}
               >
                 <RefreshCw size={12} />
-                다시 분석
+                {analyzing ? '분석 중...' : '수동 재분석'}
               </Button>
             </div>
           )
@@ -185,51 +183,6 @@ export default function StatusPage() {
         />
       )}
 
-      {/* 분석 실행 확인 모달 */}
-      <Modal
-        isOpen={analyzeModalOpen}
-        onClose={() => !analyzing && setAnalyzeModalOpen(false)}
-        title="분석을 실행하시겠습니까?"
-        icon={<RefreshCw size={20} className="text-primary" />}
-        width={440}
-        actions={[
-          {
-            label: '취소',
-            variant: 'ghost',
-            onClick: () => setAnalyzeModalOpen(false),
-          },
-          {
-            label: analyzing ? '실행 중...' : '실행',
-            variant: 'primary',
-            onClick: handleAnalyze,
-          },
-        ]}
-      >
-        <p className="text-[14px] text-muted-foreground leading-relaxed mb-4">
-          현재 코드와 기획서를 기반으로 전체 기능의 구현 현황을 재분석합니다.
-          Claude API가 호출되며 크레딧이 차감됩니다.
-        </p>
-        <div
-          className="flex items-center justify-between rounded-lg"
-          style={{
-            padding: 12,
-            backgroundColor: 'var(--color-muted)',
-          }}
-        >
-          <span style={{ fontSize: 13, color: 'var(--color-muted-foreground)' }}>
-            예상 소요 크레딧
-          </span>
-          <span
-            style={{
-              fontSize: 14,
-              fontWeight: 700,
-              color: 'var(--color-primary)',
-            }}
-          >
-            약 1 크레딧
-          </span>
-        </div>
-      </Modal>
     </>
   );
 }

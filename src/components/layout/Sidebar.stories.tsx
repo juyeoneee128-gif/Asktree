@@ -38,10 +38,8 @@ const meta = {
     menuItems: defaultMenuItems,
     activeMenu: 'issues',
     agentStatus: 'connected',
-    credits: 36,
     onMenuClick: fn(),
     onProjectSelect: fn(),
-    onCreditClick: fn(),
   },
 } satisfies Meta<typeof Sidebar>;
 
@@ -53,7 +51,6 @@ export const Connected: Story = {};
 export const Disconnected: Story = {
   args: {
     agentStatus: 'disconnected',
-    credits: 0,
   },
 };
 
