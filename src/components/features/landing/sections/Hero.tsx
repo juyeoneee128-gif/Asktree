@@ -7,7 +7,7 @@ export function Hero() {
       <div className="max-w-[1200px] mx-auto px-6 pt-20 pb-16 md:pt-28 md:pb-24">
         <div className="flex flex-col items-center text-center max-w-3xl mx-auto">
           <span className="inline-block text-[13px] font-semibold text-primary bg-orange-50 px-3 py-1 rounded-pill mb-5">
-            바이브코더를 위한 코드 가디언
+            Beta 출시
           </span>
           <h1 className="text-[36px] md:text-[52px] leading-[1.15] font-bold text-foreground tracking-tight">
             코딩하는 동안,

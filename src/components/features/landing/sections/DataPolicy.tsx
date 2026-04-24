@@ -1,38 +1,41 @@
-import { Zap, MessageCircleHeart, Lock } from 'lucide-react';
+import { Trash2, ShieldCheck, FileCheck } from 'lucide-react';
 import { Card } from '@/src/components/ui';
 
-const benefits = [
+const items = [
   {
-    icon: Zap,
-    title: '코딩하면 자동으로 분석',
+    icon: Trash2,
+    title: '코드 원본은 저장하지 않습니다',
     description:
-      '따로 뭔가를 실행하거나 설정할 필요 없습니다. 에이전트가 백그라운드에서 알아서 합니다.',
+      '분석 후 즉시 파기됩니다 (Ephemeral Processing). 서버에는 분석 결과만 안전하게 저장됩니다.',
   },
   {
-    icon: MessageCircleHeart,
-    title: '코드를 몰라도 괜찮습니다',
+    icon: ShieldCheck,
+    title: '암호화된 통신',
     description:
-      "모든 안내는 비개발자 언어로 제공됩니다. '이 함수를 복원하세요'가 아니라 '결제 기능이 삭제되었습니다. 이 명령어를 붙여넣으세요'라고 알려줍니다.",
+      '에이전트와 서버 간 모든 데이터는 HTTPS로 암호화되어 전송됩니다. API 키는 AES-256으로 서버에서 암호화 저장됩니다.',
   },
   {
-    icon: Lock,
-    title: '내 코드는 서버에 저장되지 않습니다',
+    icon: FileCheck,
+    title: '투명한 수집 범위',
     description:
-      '분석 후 즉시 파기됩니다(Ephemeral Processing). 분석 결과만 저장합니다.',
+      '수집하는 것: Claude Code 세션 로그, 변경된 파일 diff. 수집하지 않는 것: .env, 비밀번호, 개인정보.',
   },
 ];
 
-export function Benefits() {
+export function DataPolicy() {
   return (
-    <section className="bg-gray-50 border-y border-border">
+    <section className="bg-white">
       <div className="max-w-[1200px] mx-auto px-6 py-20 md:py-24">
         <div className="text-center max-w-2xl mx-auto mb-14">
           <h2 className="text-[28px] md:text-[36px] font-bold text-foreground tracking-tight">
-            그래서 뭐가 좋냐면요
+            데이터 관리 정책
           </h2>
+          <p className="mt-4 text-[16px] text-muted-foreground leading-relaxed">
+            내 코드는 내 것. 데이터는 투명하게 관리됩니다.
+          </p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {benefits.map((item, idx) => {
+          {items.map((item, idx) => {
             const Icon = item.icon;
             return (
               <Card key={idx} padding="28px">

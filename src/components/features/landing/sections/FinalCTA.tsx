@@ -14,6 +14,9 @@ export function FinalCTA() {
           <p className="mt-5 text-[15px] md:text-[16px] text-muted-foreground">
             설치 3분. 첫 분석 결과까지 5분.
           </p>
+          <p className="mt-2 text-[13px] md:text-[14px] text-muted-foreground">
+            현재 Beta 서비스 중입니다. 피드백을 보내주시면 서비스 개선에 반영합니다.
+          </p>
           <div className="mt-8">
             <Link href="/auth/login">
               <Button size="lg">무료로 시작하기</Button>
