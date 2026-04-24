@@ -8,7 +8,6 @@
  * 옵션 환경변수:
  *   ASKTREE_API_URL   (기본: http://localhost:3000)
  *   ASKTREE_ROOT      (기본: /Users/juyeoneee/Desktop/asktree)
- *   ASKTREE_TARGETS   (기본: "src/lib,app/api" — 쉼표 구분)
  */
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
@@ -18,7 +17,6 @@ const PROJECT_ID = process.env.ASKTREE_PROJECT_ID;
 const AGENT_TOKEN = process.env.ASKTREE_AGENT_TOKEN;
 const API_URL = process.env.ASKTREE_API_URL ?? 'http://localhost:3000';
 const ROOT = process.env.ASKTREE_ROOT ?? '/Users/juyeoneee/Desktop/asktree';
-const TARGETS = (process.env.ASKTREE_TARGETS ?? 'src/lib,app/api').split(',').map((s) => s.trim());
 
 if (!PROJECT_ID || !AGENT_TOKEN) {
   console.error('ERROR: ASKTREE_PROJECT_ID and ASKTREE_AGENT_TOKEN are required.');
@@ -28,8 +26,13 @@ if (!PROJECT_ID || !AGENT_TOKEN) {
 }
 
 const EXCLUDE_DIRS = new Set(['node_modules', '.next', '.git', 'dist', 'build', '.turbo', '.vercel', '__tests__']);
-const INCLUDE_EXT = ['.ts', '.tsx'];
+const INCLUDE_EXT = ['.ts', '.tsx', '.js', '.jsx', '.mjs'];
+const EXCLUDE_FILE_PATTERNS = [/\.stories\.tsx?$/, /\.test\.(ts|tsx|js|jsx|mjs)$/, /\.spec\.(ts|tsx|js|jsx|mjs)$/];
 const MAX_BYTES_PER_FILE = 10_000;
+
+function isExcludedFile(name) {
+  return EXCLUDE_FILE_PATTERNS.some((re) => re.test(name));
+}
 
 function walk(dir, acc = []) {
   let entries;
@@ -48,16 +51,15 @@ function walk(dir, acc = []) {
     }
     if (stat.isDirectory()) {
       if (!EXCLUDE_DIRS.has(entry)) walk(full, acc);
-    } else if (INCLUDE_EXT.some((e) => entry.endsWith(e))) {
+    } else if (INCLUDE_EXT.some((e) => entry.endsWith(e)) && !isExcludedFile(entry)) {
       acc.push(full);
     }
   }
   return acc;
 }
 
-const absTargets = TARGETS.map((t) => join(ROOT, t));
-const files = absTargets.flatMap((d) => walk(d));
-console.log(`Found ${files.length} files under ${TARGETS.join(', ')}`);
+const files = walk(ROOT);
+console.log(`Found ${files.length} files under ${ROOT}`);
 
 const diffs = files.map((f) => {
   let content = readFileSync(f, 'utf8');
@@ -142,7 +144,7 @@ const sizeMB = (raw.length / 1024 / 1024).toFixed(2);
 console.log(`Payload: ${files.length} files, ${diffs.length} diffs, ${sizeMB} MB (limit 10 MB)`);
 
 if (raw.length > 10 * 1024 * 1024) {
-  console.error('ERROR: payload exceeds 10 MB. Reduce ASKTREE_TARGETS or lower MAX_BYTES_PER_FILE.');
+  console.error('ERROR: payload exceeds 10 MB. Lower MAX_BYTES_PER_FILE or add more exclusions.');
   process.exit(1);
 }
 

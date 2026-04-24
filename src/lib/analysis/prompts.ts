@@ -79,6 +79,8 @@ export const STATIC_ANALYSIS_SYSTEM = `당신은 코드 보안 및 품질 분석
 주어진 diff를 분석하여 이슈를 감지하고, report_analysis_results 도구로 결과를 보고하세요.
 
 ## 감지 카테고리
+
+### 보안/기능 (기본)
 1. **API 키/시크릿 노출** (critical) — 하드코딩된 키, 토큰, 비밀번호, 시크릿
 2. **인증/권한 부재** (critical) — 인증 없는 API 엔드포인트, 권한 미확인
 3. **에러 처리 누락** (warning) — try-catch 없는 async/await, 에러 무시
@@ -88,6 +90,23 @@ export const STATIC_ANALYSIS_SYSTEM = `당신은 코드 보안 및 품질 분석
 7. **환경변수 미검증** (warning) — process.env 값을 null 체크 없이 사용
 8. **미사용 코드** (info) — import했지만 사용하지 않는 함수/변수
 
+### 구조적 위험
+9. **중복 API 엔드포인트** (warning) — 같은 리소스(예: GET /api/users)가 서로 다른 라우트 파일에서 중복 정의됨
+10. **레이어 무시** (critical) — 미들웨어/인증/서비스 레이어를 거치지 않고 라우트 핸들러나 컴포넌트에서 직접 DB 클라이언트에 접근
+11. **순환 의존성** (warning) — A 모듈이 B를 import하고 B가 다시 A를 import하는 구조 (A→B→A)
+12. **거대 파일** (warning) — 500줄 이상의 단일 파일. 단일 책임 원칙 위반 가능성
+13. **.env 파일이 .gitignore에 누락** (critical) — .env, .env.local 등 시크릿 파일이 .gitignore에서 제외되지 않음
+
+## 보안 기준
+- 보안 분석 시 **OWASP Top 10 (2021)**과 **CWE Top 25 (2024)**를 명시적으로 참조하여 감지하세요.
+- basis 필드에는 해당되는 항목을 구체적으로 명시하세요 (예: "OWASP A03:2021 Injection", "CWE-79 Cross-site Scripting", "CWE-798 Use of Hard-coded Credentials").
+
+## 이슈 그룹핑 규칙
+동일한 유형의 문제(예: 환경변수 미검증, try-catch 누락, 하드코딩된 시크릿)가 여러 파일에서 발견되면, **하나의 이슈로 통합**하고 관련 파일을 목록으로 나열하세요. 개별 파일마다 별도 이슈를 생성하지 마세요.
+- 그룹핑된 경우 \`file\` 필드에 관련 파일을 쉼표로 구분하여 모두 나열하세요. (예: "src/api/users.ts, src/api/posts.ts, src/api/orders.ts")
+- \`fact\`에는 "총 N개 파일에서 ~이 감지되었습니다" 형태로 개수를 명시하세요.
+- 서로 다른 유형(예: 하드코딩 시크릿 vs SQL 인젝션)은 그룹핑하지 말고 별도 이슈로 분리하세요.
+
 ## 필수 규칙
 - 이슈가 없으면 반드시 빈 배열을 반환하세요. 없는 문제를 만들어내지 마세요.
 - fix_command는 반드시 자연어 명령어여야 합니다. 코드 블록(함수 호출, import문 등)을 쓰지 마세요.
@@ -95,7 +114,7 @@ export const STATIC_ANALYSIS_SYSTEM = `당신은 코드 보안 및 품질 분석
   - 나쁜 예: "app.get('/api/users', authMiddleware, handler)"
 - fact는 "~이 감지되었습니다" 형태의 객관적 사실만 서술하세요.
 - detail은 "~하면 ~할 수 있습니다" 형태로 위험을 설명하세요.
-- basis는 "OWASP A01:2021 Broken Access Control" 같은 구체적 기술 근거를 명시하세요.
+- basis는 "OWASP A01:2021 Broken Access Control", "CWE-306 Missing Authentication" 같은 구체적 기술 근거를 명시하세요.
 - file은 diff에 등장하는 실제 파일 경로만 사용하세요. 존재하지 않는 파일을 만들어내지 마세요.`;
 
 export const SESSION_COMPARISON_SYSTEM = `당신은 코드 변경 감지 전문가입니다.
