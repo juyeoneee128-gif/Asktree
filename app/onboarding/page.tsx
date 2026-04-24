@@ -16,9 +16,10 @@ interface OnboardingProject {
   agent_status: 'connected' | 'disconnected' | null;
 }
 
+// 에이전트가 설치되면 ~/.claude/projects/ 감시가 자동으로 시작되므로
+// 별도 "폴더 연동" 단계는 생략하고 설치 → 기획서 업로드 2단계로 구성
 const stepLabels = [
   { label: '에이전트 설치' },
-  { label: '폴더 연동' },
   { label: '기획서 (선택)' },
 ];
 
@@ -30,7 +31,13 @@ function OnboardingContent() {
   const [project, setProject] = useState<OnboardingProject | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [step, setStep] = useState<1 | 2>(1);
+
+  // Step 1 connection check state
+  const [connectionStatus, setConnectionStatus] = useState<
+    'idle' | 'checking' | 'connected' | 'disconnected'
+  >('idle');
+  const [connectionMessage, setConnectionMessage] = useState<string | null>(null);
 
   // Step 3 form state
   const [docName, setDocName] = useState('');
@@ -80,9 +87,34 @@ function OnboardingContent() {
     );
   }
 
-  const handleNext = () => setStep((s) => (s === 3 ? 3 : ((s + 1) as 1 | 2 | 3)));
-  const handlePrev = () => setStep((s) => (s === 1 ? 1 : ((s - 1) as 1 | 2 | 3)));
+  const handleNext = () => setStep(2);
+  const handlePrev = () => setStep(1);
   const handleComplete = () => router.push(`/projects/${project.id}/status`);
+
+  const handleCheckConnection = async () => {
+    setConnectionStatus('checking');
+    setConnectionMessage(null);
+    try {
+      const res = await fetch(`/api/projects/${project.id}`, { cache: 'no-store' });
+      if (!res.ok) throw new Error('프로젝트 상태를 확인할 수 없습니다');
+      const data = await res.json();
+      const agentStatus: 'connected' | 'disconnected' | null = data.agent_status ?? null;
+      setProject((prev) => (prev ? { ...prev, agent_status: agentStatus } : prev));
+      if (agentStatus === 'connected') {
+        setConnectionStatus('connected');
+      } else {
+        setConnectionStatus('disconnected');
+        setConnectionMessage(
+          '아직 연결되지 않았습니다. 설치 명령을 실행했는지 확인해주세요.'
+        );
+      }
+    } catch (e) {
+      setConnectionStatus('disconnected');
+      setConnectionMessage(
+        e instanceof Error ? e.message : '연결 확인 중 오류가 발생했습니다'
+      );
+    }
+  };
 
   const canUpload = docName.trim().length > 0 && docContent.trim().length > 0;
 
@@ -113,10 +145,18 @@ function OnboardingContent() {
       </div>
 
       <Card padding="32px" className="w-full">
-        {step === 1 && <Step1Content project={project} />}
-        {step === 2 && <Step2Content />}
-        {step === 3 && (
-          <Step3Form
+        {step === 1 &&
+          (connectionStatus === 'connected' ? (
+            <Step1Success projectName={project.name} />
+          ) : (
+            <Step1Content
+              project={project}
+              connectionStatus={connectionStatus}
+              connectionMessage={connectionMessage}
+            />
+          ))}
+        {step === 2 && (
+          <SpecUploadForm
             name={docName}
             type={docType}
             content={docContent}
@@ -139,16 +179,30 @@ function OnboardingContent() {
         </div>
         <div className="flex items-center gap-2">
           {step === 1 && (
-            <Button variant="primary" onClick={handleNext}>
-              다음 →
-            </Button>
+            <>
+              <Button variant="ghost" onClick={handleNext}>
+                건너뛰기
+              </Button>
+              {connectionStatus === 'connected' ? (
+                <Button variant="primary" onClick={handleNext}>
+                  다음: 기획서 업로드 →
+                </Button>
+              ) : connectionStatus === 'disconnected' ? (
+                <Button variant="primary" onClick={handleCheckConnection}>
+                  다시 확인
+                </Button>
+              ) : (
+                <Button
+                  variant="primary"
+                  onClick={handleCheckConnection}
+                  disabled={connectionStatus === 'checking'}
+                >
+                  {connectionStatus === 'checking' ? '확인 중...' : '연결 확인'}
+                </Button>
+              )}
+            </>
           )}
           {step === 2 && (
-            <Button variant="primary" onClick={handleNext}>
-              다음 →
-            </Button>
-          )}
-          {step === 3 && (
             <>
               <Button variant="ghost" onClick={handleComplete} disabled={uploading}>
                 건너뛰기
@@ -170,7 +224,15 @@ function OnboardingContent() {
 
 // ─── Step 1 ───
 
-function Step1Content({ project }: { project: OnboardingProject }) {
+function Step1Content({
+  project,
+  connectionStatus,
+  connectionMessage,
+}: {
+  project: OnboardingProject;
+  connectionStatus: 'idle' | 'checking' | 'connected' | 'disconnected';
+  connectionMessage: string | null;
+}) {
   const installCmd = `curl -fsSL https://asktree.app/install.sh | \\
   ASKTREE_PROJECT_ID=${project.id} \\
   ASKTREE_AGENT_TOKEN=${project.agent_token ?? '<TOKEN>'} \\
@@ -208,6 +270,14 @@ function Step1Content({ project }: { project: OnboardingProject }) {
         </div>
       </div>
 
+      {connectionStatus === 'disconnected' && connectionMessage && (
+        <div className="flex items-start gap-2 p-3 rounded-lg bg-[#FEF2F2] border border-[#FCA5A5]">
+          <span className="text-[14px] text-destructive leading-relaxed">
+            {connectionMessage}
+          </span>
+        </div>
+      )}
+
       <p className="text-[12px] text-gray-400 leading-relaxed">
         ※ 코드 원문은 Ephemeral Processing으로 처리되어 분석 후 즉시 파기됩니다.
         Git에 커밋된 코드 외 정보는 서버에 영구 저장되지 않습니다.
@@ -216,47 +286,30 @@ function Step1Content({ project }: { project: OnboardingProject }) {
   );
 }
 
-// ─── Step 2 ───
-
-function Step2Content() {
+function Step1Success({ projectName }: { projectName: string }) {
   return (
-    <div className="flex flex-col gap-5">
-      <div>
-        <h2 className="text-[18px] font-bold text-foreground">2. 프로젝트 폴더 연동</h2>
-        <p className="text-[13px] text-muted-foreground mt-1 leading-relaxed">
-          에이전트를 설치한 터미널에서 분석할 프로젝트 폴더로 이동하세요.
-          Claude Code 세션이 끝나면 해당 폴더의 변경 내역이 자동으로 수집됩니다.
-        </p>
+    <div className="flex flex-col items-center gap-6 py-8">
+      <div
+        className="text-primary leading-none"
+        style={{ fontSize: 60, fontWeight: 400 }}
+        aria-hidden
+      >
+        ✓
       </div>
-
-      <div>
-        <span className="text-[12px] font-medium text-muted-foreground mb-1.5 block">
-          프로젝트 폴더로 이동
-        </span>
-        <CodeBlock code={`cd ~/your/project-path`} />
-      </div>
-
-      <div className="flex flex-col gap-2 p-4 rounded-lg bg-muted">
-        <span className="text-[13px] font-semibold text-foreground">감지되는 파일</span>
-        <ul className="text-[12px] text-muted-foreground flex flex-col gap-1 leading-relaxed list-disc pl-4">
-          <li>TypeScript/JavaScript (.ts .tsx .js .jsx)</li>
-          <li>Python (.py), Go (.go), Rust (.rs) 등 주요 언어 확장자</li>
-          <li>설정 파일 (.env.example, package.json 등)</li>
-          <li>node_modules, .next, .git 등은 자동 제외</li>
-        </ul>
-      </div>
-
-      <p className="text-[12px] text-gray-400 leading-relaxed">
-        ※ 다음 Claude Code 세션이 끝나면 에이전트가 자동으로 푸시합니다.
-        푸시 후 [현황] 탭에서 연결 상태가 “연결됨”으로 표시됩니다.
+      <h2 className="text-[24px] font-bold text-foreground text-center">
+        에이전트 연결 성공!
+      </h2>
+      <p className="text-[14px] text-muted-foreground text-center leading-relaxed">
+        <span className="font-semibold text-foreground">{projectName}</span> 프로젝트와
+        연결되었습니다.
       </p>
     </div>
   );
 }
 
-// ─── Step 3 ───
+// ─── Step 2 (기획서 업로드) ───
 
-function Step3Form({
+function SpecUploadForm({
   name,
   type,
   content,
@@ -276,7 +329,7 @@ function Step3Form({
   return (
     <div className="flex flex-col gap-5">
       <div>
-        <h2 className="text-[18px] font-bold text-foreground">3. 기획서 업로드 (선택)</h2>
+        <h2 className="text-[18px] font-bold text-foreground">2. 기획서 업로드 (선택)</h2>
         <p className="text-[13px] text-muted-foreground mt-1 leading-relaxed">
           기획서를 업로드하면 AI가 기능 목록을 추출해 [현황] 탭에서 구현 상태를 추적합니다.
           나중에 추가할 수도 있으니 지금 건너뛰어도 됩니다.

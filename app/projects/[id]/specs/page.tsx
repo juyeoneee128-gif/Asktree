@@ -32,6 +32,8 @@ export default function SpecsPage() {
   const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [reverseRunning, setReverseRunning] = useState(false);
+  const [reverseError, setReverseError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -53,9 +55,38 @@ export default function SpecsPage() {
     load();
   }, [load]);
 
-  const isEmpty = documents.length === 0;
+  // 문서가 없어도 Reverse IA로 추출된 기능이 있으면 빈 상태로 보지 않음
+  const isEmpty = documents.length === 0 && features.length === 0;
 
   const handleAddDocument = () => setIsModalOpen(true);
+
+  const handleReverseIA = async () => {
+    if (reverseRunning) return;
+    setReverseRunning(true);
+    setReverseError(null);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/specs/reverse-ia`, {
+        method: 'POST',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (res.status === 402) {
+          throw new Error(
+            `${data.error ?? '크레딧이 부족합니다'}${
+              typeof data.remaining === 'number' ? ` (남은 크레딧: ${data.remaining})` : ''
+            }`
+          );
+        }
+        throw new Error(data.error ?? '자동 추출에 실패했습니다');
+      }
+      await load();
+      router.refresh();
+    } catch (e) {
+      setReverseError(e instanceof Error ? e.message : '자동 추출에 실패했습니다');
+    } finally {
+      setReverseRunning(false);
+    }
+  };
 
   const handleDeleteDocument = async (id: string) => {
     try {
@@ -139,6 +170,31 @@ export default function SpecsPage() {
             <p className="text-[12px] text-muted-foreground">
               텍스트 기반 파일에서 가장 정확합니다
             </p>
+
+            {/* Reverse IA — 코드에서 기능 자동 추출 */}
+            <div className="mt-6 flex flex-col items-center gap-1">
+              {reverseRunning ? (
+                <span className="text-[13px] text-muted-foreground">
+                  코드에서 기능을 추출하고 있습니다...
+                </span>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleReverseIA}
+                    className="text-[13px] text-primary hover:underline cursor-pointer"
+                  >
+                    또는 코드에서 기능 자동 추출
+                  </button>
+                  <span className="text-[12px] text-gray-400">
+                    Claude API가 호출되며 1 크레딧이 차감됩니다 (30초~1분 소요)
+                  </span>
+                </>
+              )}
+              {reverseError && (
+                <span className="mt-1 text-[12px] text-destructive">{reverseError}</span>
+              )}
+            </div>
           </div>
         </div>
       ) : (

@@ -42,20 +42,23 @@ Claude Code 프로젝트의 코드 파손 감지 + 복구 + 보호 도구 (MVP)
 
 ```
 app/                          # Next.js App Router 페이지
-  page.tsx                    # 메인 홈 (프로젝트 카드 그리드)
+  (home)/                     # 홈 레이아웃 그룹 (좌측 홈 사이드바)
+    projects/page.tsx         # 프로젝트 목록 (카드 그리드)
+    settings/                 # 내 설정
+      account/page.tsx        # 계정 정보
+      credits/page.tsx        # 크레딧 상세
+      api-key/page.tsx        # API 키 관리
   onboarding/page.tsx         # 온보딩 3단계
-  settings/                   # 내 설정 (계정/크레딧/API키)
-  admin/                      # 서비스 관리자 (사용자 관리/서비스 현황/공지)
-  projects/
-    page.tsx                  # 프로젝트 목록
-    [id]/
-      page.tsx                # 프로젝트 리다이렉트
-      status/page.tsx         # [현황] 탭
-      issues/page.tsx         # [이슈] 탭
-      claude-md/page.tsx      # [CLAUDE.md] 탭
-      sessions/page.tsx       # [세션] 탭
-      specs/page.tsx          # 기획서 탭
-      settings/page.tsx       # 프로젝트 설정
+  projects/[id]/              # 프로젝트 레이아웃 (프로젝트 사이드바)
+    page.tsx                  # 프로젝트 리다이렉트
+    status/page.tsx           # [현황] 탭
+    issues/page.tsx           # [이슈] 탭
+    claude-md/page.tsx        # [CLAUDE.md] 탭
+    sessions/page.tsx         # [세션] 탭
+    specs/page.tsx            # 기획서 탭
+    settings/page.tsx         # 프로젝트 설정
+  api/                        # API 라우트
+  auth/                       # 인증 (login/logout/callback)
 
 src/
   components/
@@ -66,6 +69,16 @@ src/
   lib/                        # 유틸리티, mock 데이터
   styles/
     globals.css               # 디자인 토큰 (@theme)
+
+agent/                        # 로컬 에이전트 (Node 데몬)
+  index.js                    # 엔트리: config 로드 + SIGTERM graceful shutdown
+  watcher.js                  # chokidar로 ~/.claude/projects/*.jsonl 감시 + idle 감지
+  collector.js                # JSONL 파싱 + git diff 수집
+  sender.js                   # POST /api/agent/push (지수 백오프 재시도)
+  state.js                    # ~/.asktree/state.json 영속 (중복 push 방지)
+  package.json
+
+setup-asktree.sh              # 에이전트 설치 스크립트 (launchd/systemd 등록)
 
 stories/                      # Storybook 설정
 docs/                         # PRD, 기능명세서
@@ -155,7 +168,6 @@ features/   → 탭/페이지 전용. 비즈니스 로직 포함. app/ 라우트
 - 프로젝트 내부: Master-Detail (좌측 리스트 + 우측 상세 패널)
 - 빈 상태: Master-Detail 유지 (좌측 빈 섹션 + 우측 안내 메시지). CTA 버튼 최대 240px.
 - 사이드바 메뉴 순서: 현황 / 이슈 / CLAUDE.md / 세션 / 기획서 / 설정 / 내 설정
-- 서비스 관리 메뉴: admin role에게만 노출
 - 글로벌 헤더 높이: 56px
 - 선택 항목: #FFFFFF 배경 + 좌측 컬러 3px 세로선
 
@@ -229,10 +241,6 @@ features/   → 탭/페이지 전용. 비즈니스 로직 포함. app/ 라우트
 /settings/account           → 계정 정보 상세
 /settings/credits           → 크레딧 상세
 /settings/api-key           → API 키 상세
-/admin                      → 서비스 관리자 메인 (admin role만 접근)
-/admin/users                → 사용자 관리 (무료/유료 구분, 크레딧 지급/차감, 정지)
-/admin/dashboard            → 서비스 현황 (총 사용자 수, 총 분석 횟수)
-/admin/notices              → 공지/시스템 설정 (서비스 공지, 무료 크레딧 기본값)
 /404                        → 404 에러
 /500                        → 500 에러
 ```
@@ -245,7 +253,6 @@ RootLayout (app/layout.tsx)
 ├── /projects                → 메인 홈 레이아웃 (좌측 홈 사이드바)
 ├── /projects/[id]/*         → 프로젝트 레이아웃 (좌측 프로젝트 사이드바 + GlobalHeader)
 ├── /settings/*              → 메인 홈 레이아웃 (좌측 홈 사이드바)
-├── /admin/*                 → 관리자 레이아웃 (좌측 관리자 사이드바, admin role만 접근)
 └── /404, /500               → 단독 레이아웃
 ```
 
@@ -263,7 +270,6 @@ RootLayout (app/layout.tsx)
 | Phase 7 | 프로젝트 설정 + 내 설정 | SettingsCardGrid 재사용. 모달 3~4개. |
 | Phase 8 | 온보딩 (/onboarding) | Step 1~3. 독립 플로우. 다른 페이지 완성 후가 자연스러움. |
 | Phase 9 | 공통 시스템 (404/500/스켈레톤/세션 만료) | 마무리 단계. |
-| Phase 10 | 서비스 관리자 패널 (/admin) | 사용자 관리, 서비스 현황, 공지/시스템 설정. admin role 전용. |
 
 ### 3. 각 페이지별 상세
 
@@ -314,31 +320,21 @@ RootLayout (app/layout.tsx)
 - mock: `SpecDocument { id, name, uploadedAt, type }`, `SpecFeature { id, name, sources: SpecDocType[], status }` — 한 기능이 여러 문서에 등장 가능
 - MVP 정책: 기능 목록은 읽기 전용 (편집/추가 없음), 문서 교체는 삭제 후 재추가, 파일 업로드는 Phase 2 (현재 텍스트 붙여넣기만)
 
-#### Phase 7: 내 설정 + 프로젝트 설정 (1.5일)
+#### Phase 7: 내 설정 + 프로젝트 설정 (1.5일) ✅ 완료
 
 - 범위: `/settings/*` (내 계정/크레딧/API키) + `/projects/[id]/settings` (프로젝트 설정)
 - 사용 컴포넌트: SettingsCardGrid, StatusDot, Modal, InputField, Button, CodeBlock, ProgressBar, Card
 - 신규: 없음
 
-#### Phase 8: 온보딩 (1.5일)
+#### Phase 8: 온보딩 (1.5일) ✅ 완료
 
 - 사용 컴포넌트: Stepper, CodeBlock, Button, StatusDot, Card, Badge, ProgressBar
 - 신규: OnboardingLayout, FileUploadArea
 
-#### Phase 9: 공통 시스템 (0.5일)
+#### Phase 9: 공통 시스템 (0.5일) ✅ 완료
 
 - 사용 컴포넌트: Button, Modal
 - 신규: Skeleton (pulse 애니메이션)
-
-#### Phase 10: 서비스 관리자 패널 (1.5일)
-
-- 범위: `/admin/*` (admin role 전용)
-- 사용자 관리 (`/admin/users`): 전체 사용자 목록 (무료/유료 구분 배지), 크레딧 수동 지급/차감, 계정 정지
-- 서비스 현황 (`/admin/dashboard`): 총 사용자 수, 총 분석 횟수
-- 공지/시스템 설정 (`/admin/notices`): 서비스 공지 CRUD, 무료 크레딧 기본값 조정
-- 사용 컴포넌트: Card, Badge, Button, Modal, InputField, Table(신규)
-- 신규: AdminLayout, UserTable, NoticeEditor
-- 접근 제어: `users.role = 'admin'` 체크 미들웨어, 비admin 접근 시 404 리다이렉트
 
 ### 4. 폴더 구조
 
@@ -362,7 +358,7 @@ src/components/features/          ← 신규 페이지 전용 컴포넌트
   │   └── SpecUploadModal.tsx
   ├── home/
   │   └── ProjectCard.tsx
-  └── onboarding/                  ← 🔲 Phase 8 예정
+  └── onboarding/
       ├── OnboardingLayout.tsx
       └── FileUploadArea.tsx
 ```
@@ -388,10 +384,9 @@ src/components/features/          ← 신규 페이지 전용 컴포넌트
 | Phase 4: 현황 탭 | 2일 | ✅ 완료 |
 | Phase 5: 세션 탭 | 1일 | ✅ 완료 |
 | Phase 6: 기획서 탭 | 1일 | ✅ 완료 |
-| Phase 7: 내 설정 + 프로젝트 설정 | 1.5일 | 🔲 대기 |
-| Phase 8: 온보딩 | 1.5일 | 🔲 대기 |
-| Phase 9: 공통 시스템 | 0.5일 | 🔲 대기 |
-| Phase 10: 서비스 관리자 패널 | 1.5일 | 🔲 대기 |
+| Phase 7: 내 설정 + 프로젝트 설정 | 1.5일 | ✅ 완료 |
+| Phase 8: 온보딩 | 1.5일 | ✅ 완료 |
+| Phase 9: 공통 시스템 | 0.5일 | ✅ 완료 |
 
 ### 7. 진행 현황
 
@@ -404,10 +399,9 @@ src/components/features/          ← 신규 페이지 전용 컴포넌트
 | Phase 4 | ✅ 완료 | 2026-04-10 | 현황 탭, `FeatureListItem`, `FeatureDetailPanel`(메트릭 카드 + 구현 항목 + PRD 참고 + 기술 상세) |
 | Phase 5 | ✅ 완료 | 2026-04-10 | 세션 탭(평면 리스트), `SessionDetailPanel`(요약/세션 로그 탭), claude-replay 스타일 다크 터미널 로그 뷰어, EmptyState |
 | Phase 6 | ✅ 완료 | 2026-04-10 | 기획서 탭, `SpecDocList`(FRD/PRD pill + ⋮ 삭제 메뉴), `SpecFeatureList`(읽기 전용 통합 기능 목록), `SpecUploadModal`(텍스트 붙여넣기 방식) |
-| Phase 7 | 🔲 대기 | - | 내 설정(`/settings`) + 프로젝트 설정, SettingsCardGrid 재사용 |
-| Phase 8 | 🔲 대기 | - | 온보딩 Step 1~3, `OnboardingLayout`, `FileUploadArea` |
-| Phase 9 | 🔲 대기 | - | 404/500/스켈레톤/세션 만료, 공통 시스템 마무리 |
-| Phase 10 | 🔲 대기 | - | 서비스 관리자 패널(`/admin`), 사용자 관리(무료/유료 구분), 서비스 현황, 공지/시스템 설정 |
+| Phase 7 | ✅ 완료 | 2026-04-24 | 내 설정(`/settings/*`) + 프로젝트 설정, SettingsCardGrid 재사용 |
+| Phase 8 | ✅ 완료 | 2026-04-24 | 온보딩 Step 1~3 (에이전트 연결 확인 포함), `OnboardingLayout`, `FileUploadArea` |
+| Phase 9 | ✅ 완료 | 2026-04-24 | 404/500/스켈레톤/세션 만료 등 공통 시스템 페이지 |
 
 ---
 
@@ -423,7 +417,6 @@ Tier 0 (스키마 + 인증 + API 구조)
                     ├─→ Tier 4 (이슈/가이드라인 API)
                     └─→ Tier 5 (기획서 + 현황)
                           └─→ Tier 6 (크레딧 + 설정)
-                                └─→ Tier 7 (서비스 관리자)
 ```
 
 ### Tier 0: 기반 인프라
@@ -513,14 +506,10 @@ app/api/
 │       └── analyze/route.ts    POST (분석 실행)
 ├── agent/
 │   └── push/route.ts           POST (에이전트 데이터 수신)
-├── user/
-│   ├── route.ts                GET, PATCH
-│   ├── credits/route.ts
-│   └── api-key/route.ts
-└── admin/                      (admin role 전용, 권한 미들웨어)
-    ├── users/route.ts          GET (사용자 목록, 무료/유료 구분), PATCH (크레딧 지급/차감, 정지)
-    ├── dashboard/route.ts      GET (총 사용자 수, 총 분석 횟수)
-    └── notices/route.ts        GET, POST, PATCH, DELETE (공지/시스템 설정)
+└── user/
+    ├── route.ts                GET, PATCH
+    ├── credits/route.ts
+    └── api-key/route.ts
 ```
 
 ### 결정 사항 (확정)
@@ -543,4 +532,36 @@ app/api/
 | Tier 4 | ✅ 완료 | 2026-04-09 | 이슈/가이드라인 CRUD API, 상태 전이(미확인↔확인↔해결), 분석 실행 트리거, 예상 크레딧 추정 |
 | Tier 5 | ✅ 완료 | 2026-04-09 | 기획서 업로드/기능 추출, PRD vs 코드 대조(현황 감리), Reverse IA |
 | Tier 6 | ✅ 완료 | 2026-04-10 | 크레딧 관리(잔여/차감/내역), API 키 AES-256 암호화(pgcrypto), 계정 관리(프로필/삭제 cascade) |
-| Tier 7 | 🔲 대기 | - | 서비스 관리자 API(`/api/admin/*`), 사용자 목록(무료/유료), 크레딧 수동 지급/차감, 계정 정지, 서비스 현황, 공지 CRUD, admin 권한 미들웨어 |
+
+---
+
+## 로컬 에이전트
+
+Claude Code 세션 JSONL을 감시해 `/api/agent/push`로 자동 전송하는 Node 데몬.
+
+### 구성
+- `agent/index.js` — 엔트리, `~/.asktree/config.env` 로드, SIGTERM/SIGINT graceful shutdown
+- `agent/watcher.js` — chokidar로 `~/.claude/projects/**/*.jsonl` 감시, 파일당 idle 타이머(기본 60s) + in-flight 가드
+- `agent/collector.js` — JSONL에서 sessionId/cwd 추출, `git diff HEAD` 수집, 파일당 10KB / 전체 9MB 예산
+- `agent/sender.js` — POST `/api/agent/push`, 5xx 지수 백오프 3회(1s/3s/9s), 409 중복은 성공 처리
+- `agent/state.js` — `~/.asktree/state.json`에 pushed_session_ids 보관 (상한 1000)
+- `setup-asktree.sh` — `~/.asktree/agent/` 설치 + macOS launchd / Linux systemd --user 등록
+
+### 환경변수 (`~/.asktree/config.env`, 권한 600)
+- `ASKTREE_PROJECT_ID` (필수)
+- `ASKTREE_AGENT_TOKEN` (필수)
+- `ASKTREE_API_URL` (기본 `http://localhost:3000`)
+- `ASKTREE_IDLE_TIMEOUT_MS` (기본 60000)
+- `ASKTREE_CLAUDE_DIR` (기본 `~/.claude/projects`)
+
+### 설치
+
+```
+./setup-asktree.sh --project-id <uuid> --token <agent-token> [--api-url <url>]
+```
+
+### 진행 현황
+
+| 구성 | 상태 | 완료일 | 비고 |
+|------|------|--------|------|
+| 에이전트 데몬 + 설치 스크립트 | ✅ 완료 | 2026-04-24 | chokidar 기반 idle 감지, launchd/systemd 등록, JSONL 전송·git diff 수집 |

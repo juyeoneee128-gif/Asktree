@@ -2,6 +2,7 @@
 
 import { Copy, Check } from 'lucide-react';
 import { useState } from 'react';
+import { Toast } from './Toast';
 
 export interface FixBoxProps {
   command: string;
@@ -10,10 +11,12 @@ export interface FixBoxProps {
 
 export function FixBox({ command, onCopy }: FixBoxProps) {
   const [copied, setCopied] = useState(false);
+  const [toastVisible, setToastVisible] = useState(false);
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(command);
     setCopied(true);
+    setToastVisible(true);
     onCopy?.();
     setTimeout(() => setCopied(false), 2000);
   };
@@ -51,6 +54,13 @@ export function FixBox({ command, onCopy }: FixBoxProps) {
           {copied ? '복사됨' : '복사'}
         </button>
       </div>
+
+      <Toast
+        message="복사되었습니다. 지금 바로 Claude Code에 붙여넣으세요!"
+        duration={2000}
+        isVisible={toastVisible}
+        onHide={() => setToastVisible(false)}
+      />
     </div>
   );
 }
