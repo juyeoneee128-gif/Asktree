@@ -3,12 +3,17 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 /**
  * 공개 경로 판정:
+ * - / (랜딩 페이지)
  * - /auth/* (로그인/콜백/로그아웃)
  * - /api/agent/* (로컬 에이전트 데이터 수신 — 별도 토큰 검증)
  * 나머지는 인증 필요.
  */
 function isPublicPath(pathname: string): boolean {
-  return pathname.startsWith('/auth') || pathname.startsWith('/api/agent');
+  return (
+    pathname === '/' ||
+    pathname.startsWith('/auth') ||
+    pathname.startsWith('/api/agent')
+  );
 }
 
 export async function updateSession(request: NextRequest) {
