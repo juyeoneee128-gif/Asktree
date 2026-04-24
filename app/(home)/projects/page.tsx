@@ -48,9 +48,10 @@ export default function ProjectsPage() {
     if (!newProjectName.trim()) return;
     try {
       const newProject = await createProject(newProjectName.trim());
-      setProjects((prev) => [newProject, ...prev]);
       setCreateModalOpen(false);
       setNewProjectName('');
+      // 신규 프로젝트는 온보딩으로 진입 (기존 프로젝트 카드 클릭은 /status 직행)
+      router.push(`/onboarding?projectId=${newProject.id}`);
     } catch (e) {
       alert(e instanceof Error ? e.message : '프로젝트 생성에 실패했습니다');
     }

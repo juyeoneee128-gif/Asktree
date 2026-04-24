@@ -60,7 +60,7 @@ export function ProjectShell({
         credits={credits}
         onMenuClick={(key) => router.push(`/projects/${projectId}/${key}`)}
         onProjectSelect={() => router.push('/projects')}
-        onCreditClick={() => router.push('/admin/credits')}
+        onCreditClick={() => router.push('/settings/credits')}
       />
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         {children}

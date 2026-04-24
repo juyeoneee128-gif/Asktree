@@ -11,6 +11,7 @@ import { EmptyState } from '@/src/components/composite/EmptyState';
 import { GuidelineListSection } from '@/src/components/features/claude-md/GuidelineListSection';
 import { GuidelineDetailPanel } from '@/src/components/features/claude-md/GuidelineDetailPanel';
 import { FullPreviewModal } from '@/src/components/features/claude-md/FullPreviewModal';
+import { PageSkeleton } from '@/src/components/ui/Skeleton';
 import {
   fetchGuidelines,
   patchGuideline,
@@ -110,11 +111,7 @@ export default function ClaudeMdPage() {
   const isEmpty = guidelines.length === 0;
 
   if (loading) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <p className="text-[14px] text-muted-foreground">로딩 중...</p>
-      </div>
-    );
+    return <PageSkeleton />;
   }
 
   if (error) {

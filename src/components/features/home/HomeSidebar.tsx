@@ -18,8 +18,8 @@ const topMenuItems = [
 ];
 
 const bottomMenuItems = [
-  { key: '/admin', label: '관리자 설정', icon: Settings },
-  { key: '/admin/credits', label: '플랜 및 결제', icon: CreditCard },
+  { key: '/settings', label: '내 설정', icon: Settings },
+  { key: '/settings/credits', label: '플랜 및 결제', icon: CreditCard },
 ];
 
 export interface HomeSidebarUser {
@@ -74,7 +74,7 @@ export function HomeSidebar({ user }: HomeSidebarProps) {
       {/* Bottom menu */}
       <div className="border-t border-border py-2">
         {bottomMenuItems.map((item) => {
-          const isActive = pathname === item.key || (item.key === '/admin' && pathname.startsWith('/admin'));
+          const isActive = pathname === item.key || (item.key === '/settings' && pathname.startsWith('/settings'));
           const Icon = item.icon;
           return (
             <Link

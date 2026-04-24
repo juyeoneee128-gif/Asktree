@@ -126,9 +126,10 @@ export async function POST(request: Request) {
     console.error('[push] Agent status update failed:', (err as Error).message);
   }
 
-  // 10. 자동 분석 트리거 (비동기, 응답 차단 안 함)
+  // 10. 자동 분석 트리거 (비동기, 응답 차단 안 함 — userId 전달로 크레딧 체크/차감)
+  // 크레딧 부족 시 run-analysis 내부에서 skip + warnings 기록
   if (payload.session_data.diffs && payload.session_data.diffs.length > 0) {
-    runAnalysis(payload.project_id, saved.id).catch((err) => {
+    runAnalysis(payload.project_id, saved.id, authResult.user_id).catch((err) => {
       console.error('[push] Auto analysis failed:', (err as Error).message);
     });
   }

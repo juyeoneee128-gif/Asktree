@@ -1,7 +1,7 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useMemo, useState, useEffect, useCallback } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import { Folder, RefreshCw } from 'lucide-react';
 import { GlobalHeader } from '@/src/components/layout/GlobalHeader';
 import { MasterDetailLayout } from '@/src/components/layout/MasterDetailLayout';
@@ -12,16 +12,40 @@ import { Modal } from '@/src/components/ui/Modal';
 import { EmptyState } from '@/src/components/composite/EmptyState';
 import { FeatureListItem } from '@/src/components/features/status/FeatureListItem';
 import { FeatureDetailPanel } from '@/src/components/features/status/FeatureDetailPanel';
-import { mockFeatures, type Feature } from '@/src/lib/mock-data';
+import { fetchStatusFeatures, assessFeatures } from '@/src/lib/api/specs';
+import { PageSkeleton } from '@/src/components/ui/Skeleton';
+import type { Feature } from '@/src/lib/mock-data';
 
 export default function StatusPage() {
   const params = useParams<{ id: string }>();
-  const projectId = params?.id;
+  const router = useRouter();
+  const projectId = params?.id ?? '';
   const issuesHref = projectId ? `/projects/${projectId}/issues` : '/projects';
 
-  const [features] = useState<Feature[]>(mockFeatures);
-  const [selectedId, setSelectedId] = useState<string | null>(features[0]?.id ?? null);
+  const [features, setFeatures] = useState<Feature[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [analyzeModalOpen, setAnalyzeModalOpen] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!projectId) return;
+    try {
+      setError(null);
+      const { features: fetched } = await fetchStatusFeatures(projectId);
+      setFeatures(fetched);
+      setSelectedId((prev) => prev ?? fetched[0]?.id ?? null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '기능 목록을 불러올 수 없습니다');
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const selectedFeature = useMemo(
     () => features.find((f) => f.id === selectedId) ?? null,
@@ -36,13 +60,41 @@ export default function StatusPage() {
       attention: features.filter((f) => f.status === 'attention').length,
       unimplemented: features.filter((f) => f.status === 'unimplemented').length,
     };
-    const rate = total > 0
-      ? Math.round(((counts.implemented + counts.partial * 0.5) / total) * 100)
-      : 0;
+    const rate =
+      total > 0
+        ? Math.round(((counts.implemented + counts.partial * 0.5) / total) * 100)
+        : 0;
     return { total, counts, rate };
   }, [features]);
 
+  const handleAnalyze = async () => {
+    if (!projectId) return;
+    try {
+      setAnalyzing(true);
+      await assessFeatures(projectId);
+      setAnalyzeModalOpen(false);
+      await load();
+      router.refresh();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : '분석 실행에 실패했습니다');
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
   const isEmpty = features.length === 0;
+
+  if (loading) {
+    return <PageSkeleton />;
+  }
+
+  if (error) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <p className="text-[14px] text-destructive">{error}</p>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -79,9 +131,6 @@ export default function StatusPage() {
                 <Badge variant="attention">확인 {stats.counts.attention}</Badge>
                 <Badge variant="unimplemented">미구현 {stats.counts.unimplemented}</Badge>
               </div>
-              <span style={{ fontSize: 12, color: 'var(--color-muted-foreground)' }}>
-                마지막 분석: 2시간 전
-              </span>
               <Button
                 variant="outline"
                 size="sm"
@@ -139,7 +188,7 @@ export default function StatusPage() {
       {/* 분석 실행 확인 모달 */}
       <Modal
         isOpen={analyzeModalOpen}
-        onClose={() => setAnalyzeModalOpen(false)}
+        onClose={() => !analyzing && setAnalyzeModalOpen(false)}
         title="분석을 실행하시겠습니까?"
         icon={<RefreshCw size={20} className="text-primary" />}
         width={440}
@@ -150,14 +199,15 @@ export default function StatusPage() {
             onClick: () => setAnalyzeModalOpen(false),
           },
           {
-            label: '실행',
+            label: analyzing ? '실행 중...' : '실행',
             variant: 'primary',
-            onClick: () => setAnalyzeModalOpen(false),
+            onClick: handleAnalyze,
           },
         ]}
       >
         <p className="text-[14px] text-muted-foreground leading-relaxed mb-4">
-          현재 코드와 기획서를 기반으로 전체 기능의 구현 현황을 분석합니다.
+          현재 코드와 기획서를 기반으로 전체 기능의 구현 현황을 재분석합니다.
+          Claude API가 호출되며 크레딧이 차감됩니다.
         </p>
         <div
           className="flex items-center justify-between rounded-lg"
@@ -176,7 +226,7 @@ export default function StatusPage() {
               color: 'var(--color-primary)',
             }}
           >
-            약 15 크레딧
+            약 1 크레딧
           </span>
         </div>
       </Modal>

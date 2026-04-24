@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import { CloudUpload, FileText, Plus } from 'lucide-react';
 import { GlobalHeader } from '@/src/components/layout/GlobalHeader';
 import { MasterDetailLayout } from '@/src/components/layout/MasterDetailLayout';
@@ -12,45 +13,89 @@ import {
   type SpecUploadValue,
 } from '@/src/components/features/specs/SpecUploadModal';
 import {
-  mockSpecDocuments,
-  mockSpecFeatures,
-  type SpecDocument,
-  type SpecFeature,
-} from '@/src/lib/mock-data';
+  fetchSpecDocuments,
+  fetchSpecFeatures,
+  createSpecDocument,
+  deleteSpecDocument,
+} from '@/src/lib/api/specs';
+import { PageSkeleton } from '@/src/components/ui/Skeleton';
+import type { SpecDocument, SpecFeature } from '@/src/lib/mock-data';
 
 export default function SpecsPage() {
-  const [documents, setDocuments] = useState<SpecDocument[]>(mockSpecDocuments);
-  const [features, setFeatures] = useState<SpecFeature[]>(mockSpecFeatures);
+  const params = useParams();
+  const router = useRouter();
+  const projectId = params.id as string;
+
+  const [documents, setDocuments] = useState<SpecDocument[]>([]);
+  const [features, setFeatures] = useState<SpecFeature[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [uploading, setUploading] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      setError(null);
+      const [docs, featuresResult] = await Promise.all([
+        fetchSpecDocuments(projectId),
+        fetchSpecFeatures(projectId),
+      ]);
+      setDocuments(docs);
+      setFeatures(featuresResult.features);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '데이터를 불러올 수 없습니다');
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const isEmpty = documents.length === 0;
 
   const handleAddDocument = () => setIsModalOpen(true);
 
-  const handleDeleteDocument = (id: string) => {
-    setDocuments((prev) => prev.filter((d) => d.id !== id));
-    // 문서가 모두 사라지면 추출된 기능도 비웁니다 (MVP 단순화).
-    if (documents.length <= 1) setFeatures([]);
+  const handleDeleteDocument = async (id: string) => {
+    try {
+      await deleteSpecDocument(projectId, id);
+      await load();
+      router.refresh();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : '문서 삭제에 실패했습니다');
+    }
   };
 
-  const handleSubmitUpload = (value: SpecUploadValue) => {
-    const today = new Date()
-      .toISOString()
-      .slice(0, 10)
-      .replace(/-/g, '.');
-
-    const newDoc: SpecDocument = {
-      id: `doc-${Date.now()}`,
-      name: value.name,
-      type: value.type,
-      uploadedAt: today,
-    };
-    setDocuments((prev) => [...prev, newDoc]);
-    // MVP: 문서가 처음 추가될 때 모의 추출 결과 복원
-    if (features.length === 0) setFeatures(mockSpecFeatures);
-
-    setIsModalOpen(false);
+  const handleSubmitUpload = async (value: SpecUploadValue) => {
+    try {
+      setUploading(true);
+      await createSpecDocument(projectId, {
+        name: value.name,
+        type: value.type,
+        content: value.content,
+      });
+      setIsModalOpen(false);
+      await load();
+      router.refresh();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : '문서 업로드에 실패했습니다');
+    } finally {
+      setUploading(false);
+    }
   };
+
+  if (loading) {
+    return <PageSkeleton />;
+  }
+
+  if (error) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <p className="text-[14px] text-destructive">{error}</p>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -91,7 +136,9 @@ export default function SpecsPage() {
               </Button>
             </div>
             <p className="mt-4 text-[12px] text-muted-foreground">.md .txt .pdf .docx 지원</p>
-            <p className="text-[12px] text-muted-foreground">텍스트 기반 파일에서 가장 정확합니다</p>
+            <p className="text-[12px] text-muted-foreground">
+              텍스트 기반 파일에서 가장 정확합니다
+            </p>
           </div>
         </div>
       ) : (
@@ -112,7 +159,7 @@ export default function SpecsPage() {
 
       <SpecUploadModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        onClose={() => !uploading && setIsModalOpen(false)}
         onSubmit={handleSubmitUpload}
       />
     </>

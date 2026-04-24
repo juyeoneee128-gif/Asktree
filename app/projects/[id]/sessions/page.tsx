@@ -1,25 +1,85 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect, useCallback } from 'react';
+import { useParams } from 'next/navigation';
 import { AlertTriangle, Calendar } from 'lucide-react';
 import { GlobalHeader } from '@/src/components/layout/GlobalHeader';
 import { MasterDetailLayout } from '@/src/components/layout/MasterDetailLayout';
 import { EmptyState } from '@/src/components/composite/EmptyState';
 import { SessionDetailPanel } from '@/src/components/features/sessions/SessionDetailPanel';
-import { mockSessions, type Session } from '@/src/lib/mock-data';
+import { PageSkeleton } from '@/src/components/ui/Skeleton';
+import { fetchSessions, fetchSession } from '@/src/lib/api/sessions';
+import type { Session } from '@/src/lib/mock-data';
 
 export default function SessionsPage() {
-  const sessions = mockSessions;
-  const [selectedId, setSelectedId] = useState<string | null>(
-    sessions[0]?.id ?? null,
-  );
+  const params = useParams();
+  const projectId = params.id as string;
+
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [detailRawLog, setDetailRawLog] = useState<string>('');
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      setError(null);
+      const fetched = await fetchSessions(projectId);
+      setSessions(fetched);
+      setSelectedId(fetched[0]?.id ?? null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '세션 목록을 불러올 수 없습니다');
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  // 선택된 세션 변경 시 상세(raw_log) 재조회
+  useEffect(() => {
+    if (!selectedId) {
+      setDetailRawLog('');
+      return;
+    }
+    let cancelled = false;
+    setDetailLoading(true);
+    fetchSession(projectId, selectedId)
+      .then((result) => {
+        if (!cancelled) setDetailRawLog(result.rawLog);
+      })
+      .catch(() => {
+        if (!cancelled) setDetailRawLog('');
+      })
+      .finally(() => {
+        if (!cancelled) setDetailLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, selectedId]);
 
   const selectedSession = useMemo(
     () => sessions.find((s) => s.id === selectedId) ?? null,
-    [sessions, selectedId],
+    [sessions, selectedId]
   );
 
   const isEmpty = sessions.length === 0;
+
+  if (loading) {
+    return <PageSkeleton />;
+  }
+
+  if (error) {
+    return (
+      <div className="flex-1 flex items-center justify-center">
+        <p className="text-[14px] text-destructive">{error}</p>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -59,7 +119,12 @@ export default function SessionsPage() {
               onSelect={setSelectedId}
             />
           }
-          detailContent={<SessionDetailPanel session={selectedSession} />}
+          detailContent={
+            <SessionDetailPanel
+              session={selectedSession}
+              rawLog={detailLoading ? '' : detailRawLog}
+            />
+          }
         />
       )}
     </>

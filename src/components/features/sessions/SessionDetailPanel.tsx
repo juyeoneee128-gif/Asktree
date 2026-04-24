@@ -6,11 +6,12 @@ import type { Session, SessionLogEntry } from '@/src/lib/mock-data';
 
 export interface SessionDetailPanelProps {
   session: Session | null;
+  rawLog?: string;
 }
 
 type Tab = 'summary' | 'log';
 
-export function SessionDetailPanel({ session }: SessionDetailPanelProps) {
+export function SessionDetailPanel({ session, rawLog }: SessionDetailPanelProps) {
   const [tab, setTab] = useState<Tab>('summary');
 
   if (!session) {
@@ -54,7 +55,7 @@ export function SessionDetailPanel({ session }: SessionDetailPanelProps) {
       {tab === 'summary' ? (
         <SummaryView session={session} />
       ) : (
-        <LogView session={session} />
+        <LogView session={session} rawLog={rawLog} />
       )}
     </div>
   );
@@ -201,9 +202,13 @@ function StatCard({
 
 // ─── Log View ───
 
-function LogView({ session }: { session: Session }) {
+function LogView({ session, rawLog }: { session: Session; rawLog?: string }) {
+  const useRaw = !!rawLog && session.log.length === 0;
+
   const handleCopyAll = () => {
-    const text = session.log.map(formatEntryAsText).join('\n\n');
+    const text = useRaw
+      ? rawLog ?? ''
+      : session.log.map(formatEntryAsText).join('\n\n');
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
       navigator.clipboard.writeText(text);
     }
@@ -222,11 +227,20 @@ function LogView({ session }: { session: Session }) {
           <span className="w-3 h-3 rounded-full" style={{ backgroundColor: '#28C840' }} />
         </div>
 
-        <div className="flex flex-col gap-3" style={{ fontFamily: 'var(--font-mono)' }}>
-          {session.log.map((entry, i) => (
-            <LogEntry key={i} entry={entry} />
-          ))}
-        </div>
+        {useRaw ? (
+          <pre
+            className="text-white text-[12px] whitespace-pre-wrap break-all max-h-[600px] overflow-y-auto"
+            style={{ fontFamily: 'var(--font-mono)' }}
+          >
+            {rawLog}
+          </pre>
+        ) : (
+          <div className="flex flex-col gap-3" style={{ fontFamily: 'var(--font-mono)' }}>
+            {session.log.map((entry, i) => (
+              <LogEntry key={i} entry={entry} />
+            ))}
+          </div>
+        )}
 
         <div className="flex justify-end mt-2">
           <button

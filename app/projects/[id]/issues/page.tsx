@@ -11,6 +11,7 @@ import { Button } from '@/src/components/ui/Button';
 import { GuidelinePreview } from '@/src/components/composite/GuidelinePreview';
 import { IssueListSection } from '@/src/components/features/issues/IssueListSection';
 import { IssueDetailPanel } from '@/src/components/features/issues/IssueDetailPanel';
+import { PageSkeleton } from '@/src/components/ui/Skeleton';
 import {
   fetchIssues,
   patchIssue,
@@ -122,11 +123,7 @@ export default function IssuesPage() {
     !isEmpty && grouped.unconfirmed.length === 0 && grouped.confirmed.length === 0;
 
   if (loading) {
-    return (
-      <div className="flex-1 flex items-center justify-center">
-        <p className="text-[14px] text-muted-foreground">로딩 중...</p>
-      </div>
-    );
+    return <PageSkeleton />;
   }
 
   if (error) {

@@ -55,7 +55,7 @@ export const ProjectSettings: Story = {
             <div><span className="text-gray-400 text-[12px]">잔여 크레딧</span><br />36</div>
           </div>
         ),
-        linkLabel: '관리자 설정에서 변경 →',
+        linkLabel: '내 설정에서 변경 →',
         onLinkClick: fn(),
       },
     ],

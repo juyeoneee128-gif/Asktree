@@ -52,9 +52,9 @@ export async function POST(request: Request, { params }: Params) {
     );
   }
 
-  // 분석 실행
+  // 분석 실행 (userId 전달 → run-analysis 내부에서 크레딧 체크/차감)
   try {
-    const result = await runAnalysis(projectId, session_id);
+    const result = await runAnalysis(projectId, session_id, user.id);
 
     return NextResponse.json({
       success: true,
