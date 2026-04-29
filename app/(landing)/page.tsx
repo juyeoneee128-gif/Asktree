@@ -2,13 +2,12 @@ import { redirect } from 'next/navigation';
 import { createClient } from '@/src/lib/supabase/server';
 import { Hero } from '@/src/components/features/landing/sections/Hero';
 import { Problem } from '@/src/components/features/landing/sections/Problem';
-import { ValueProps } from '@/src/components/features/landing/sections/ValueProps';
-import { CoreFeatures } from '@/src/components/features/landing/sections/CoreFeatures';
+import { CoreValue } from '@/src/components/features/landing/sections/CoreValue';
+import { Features } from '@/src/components/features/landing/sections/Features';
 import { HowItWorks } from '@/src/components/features/landing/sections/HowItWorks';
-import { Benefits } from '@/src/components/features/landing/sections/Benefits';
 import { DataPolicy } from '@/src/components/features/landing/sections/DataPolicy';
 import { FAQ } from '@/src/components/features/landing/sections/FAQ';
-import { FinalCTA } from '@/src/components/features/landing/sections/FinalCTA';
+import { Register } from '@/src/components/features/landing/sections/Register';
 
 export default async function LandingPage() {
   const supabase = await createClient();
@@ -24,13 +23,12 @@ export default async function LandingPage() {
     <>
       <Hero />
       <Problem />
-      <ValueProps />
-      <CoreFeatures />
+      <CoreValue />
+      <Features />
       <HowItWorks />
-      <Benefits />
       <DataPolicy />
       <FAQ />
-      <FinalCTA />
+      <Register />
     </>
   );
 }

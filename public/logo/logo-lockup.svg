@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 220 56" fill="none">
+  
+  <g transform="translate(4 4)">
+    <path d="M24 0 L48 8 V22 C48 33 38 41 24 48 C10 41 0 33 0 22 V8 Z" fill="#E67D22"></path>
+    <path d="M19 16 L13 24 L19 32" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></path>
+    <path d="M29 16 L35 24 L29 32" stroke="#FFFFFF" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></path>
+    <circle cx="24" cy="24" r="1.6" fill="#FFFFFF"></circle>
+  </g>
+  
+  <text x="64" y="36" font-family="Pretendard, Inter, sans-serif" font-size="22" font-weight="700" fill="#1C1917" letter-spacing="-0.5">CodeSasu</text>
+</svg>

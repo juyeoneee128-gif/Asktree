@@ -272,6 +272,22 @@ export interface Database {
         };
         Relationships: [];
       };
+      waitlist: {
+        Row: {
+          id: string;
+          email: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          email: string;
+          created_at?: string;
+        };
+        Update: {
+          email?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;

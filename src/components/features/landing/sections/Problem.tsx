@@ -1,46 +1,40 @@
-import { AlertTriangle, BugOff, UserX } from 'lucide-react';
-import { Card } from '@/src/components/ui';
+import { FadeIn } from '@/src/components/features/landing/_components/FadeIn';
 
-const problems = [
-  {
-    icon: AlertTriangle,
-    text: "AI한테 '리팩토링해줘' 했더니 3일간 만든 기능이 통째로 사라진 적",
-  },
-  {
-    icon: BugOff,
-    text: '빌드는 되는데, 결제가 안 되거나 로그인이 깨진 걸 하루 뒤에 발견한 적',
-  },
-  {
-    icon: UserX,
-    text: '뭐가 잘못됐는지 모르겠어서 프리랜서 개발자를 불러야 했던 적',
-  },
+const pains = [
+  '리팩토링했더니 결제 기능이 사라졌는데, 이틀 뒤에 발견',
+  '빌드는 되는데, 뭐가 잘못된 건지 알 수가 없음',
+  '컨텍스트가 길어지면서 코드가 슬금슬금 변형됨',
 ];
 
 export function Problem() {
   return (
-    <section className="bg-gray-50 border-y border-border">
-      <div className="max-w-[1200px] mx-auto px-6 py-20 md:py-24">
-        <div className="text-center max-w-2xl mx-auto mb-12">
-          <h2 className="text-[28px] md:text-[36px] font-bold text-foreground tracking-tight">
-            혹시 이런 경험 있으신가요?
-          </h2>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          {problems.map((item, idx) => {
-            const Icon = item.icon;
-            return (
-              <Card key={idx} padding="28px">
-                <div className="flex flex-col gap-4">
-                  <div className="w-11 h-11 rounded-lg bg-orange-50 flex items-center justify-center">
-                    <Icon size={20} className="text-primary" />
-                  </div>
-                  <p className="text-[15px] text-foreground leading-relaxed">
-                    {item.text}
-                  </p>
+    <section className="bg-white">
+      <div className="max-w-[1200px] mx-auto px-6 py-24 md:py-32">
+        <FadeIn>
+          <blockquote className="max-w-3xl mx-auto text-center">
+            <p className="text-[28px] md:text-[36px] leading-[1.4] font-semibold text-foreground tracking-tight">
+              &ldquo;AI한테 &lsquo;이거 만들어줘&rsquo; 하면 뚝딱 나오는데,
+              <br className="hidden md:block" />
+              왜 자꾸 어딘가가 망가져 있을까요?&rdquo;
+            </p>
+          </blockquote>
+        </FadeIn>
+
+        <div className="mt-16 md:mt-20 grid grid-cols-1 md:grid-cols-3 gap-5 max-w-5xl mx-auto">
+          {pains.map((text, idx) => (
+            <FadeIn key={idx} delay={idx * 100}>
+              <div className="h-full rounded-2xl border border-border bg-white p-7">
+                <div className="w-10 h-10 rounded-lg bg-orange-50 flex items-center justify-center mb-5">
+                  <span className="text-[18px] font-bold text-primary">
+                    {String(idx + 1).padStart(2, '0')}
+                  </span>
                 </div>
-              </Card>
-            );
-          })}
+                <p className="text-[15px] leading-relaxed text-foreground">
+                  {text}
+                </p>
+              </div>
+            </FadeIn>
+          ))}
         </div>
       </div>
     </section>

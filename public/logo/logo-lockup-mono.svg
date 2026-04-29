@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="220" height="56" viewBox="0 0 220 56" fill="none" role="img" aria-label="CodeSasu">
+  <title>CodeSasu</title>
+  <g transform="translate(4 4)">
+    <path d="M24 4 C16.5 4 10.5 5.5 7.5 7.5 L13.5 16 L7.5 23 L10.5 27 L24 45 L37.5 27 L40.5 23 L34.5 16 L40.5 7.5 C37.5 5.5 31.5 4 24 4 Z" fill="#1C1917"></path>
+    <path d="M24 4 C16.5 4 10.5 5.5 7.5 7.5 L13.5 16 L7.5 23 L10.5 27 L24 45 L24 4 Z" fill="#FFFFFF" opacity="0.12"></path>
+  </g>
+  <text x="60" y="34" font-family="Pretendard, Inter, sans-serif" font-size="22" font-weight="700" fill="#1C1917" letter-spacing="-0.6">CodeSasu</text>
+</svg>
