@@ -1,12 +1,12 @@
 {
-  "name": "asktree-agent",
+  "name": "codesasu-agent",
   "version": "0.1.0",
   "private": true,
-  "description": "Asktree 로컬 에이전트 — Claude Code 세션 감시 및 /api/agent/push 전송",
+  "description": "CodeSasu 로컬 에이전트 — Claude Code 세션 감시 및 /api/agent/push 전송",
   "type": "module",
   "main": "index.js",
   "bin": {
-    "asktree-agent": "./index.js"
+    "codesasu-agent": "./index.js"
   },
   "engines": {
     "node": ">=20"

@@ -28,7 +28,7 @@ export const ClaudeMdRule: Story = {
 
 export const ShellCommand: Story = {
   args: {
-    code: 'curl -fsSL https://asktree.io/install.sh | sh',
+    code: 'curl -fsSL https://codesasu.io/install.sh | sh',
   },
 };
 

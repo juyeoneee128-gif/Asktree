@@ -12,11 +12,11 @@ export function Hero() {
           <h1 className="text-[36px] md:text-[52px] leading-[1.15] font-bold text-foreground tracking-tight">
             코딩하는 동안,
             <br />
-            Asktree가 계속 지켜봅니다
+            CodeSasu가 계속 지켜봅니다
           </h1>
           <p className="mt-6 text-[16px] md:text-[18px] text-muted-foreground leading-relaxed max-w-2xl">
-            AI가 코드를 망가뜨려도 알 수 없었던 문제, 이제 매 세션마다 자동으로
-            찾아내고, 고치는 법을 알려주고, 다시는 안 망가지게 지켜줍니다.
+            내 코딩 과정을 기억하는 사수: 코드를 몰라도 괜찮아요. 사수가
+            지켜보고 있으니까.
           </p>
           <div className="mt-8 flex flex-col sm:flex-row items-center gap-3">
             <Link href="/auth/login">

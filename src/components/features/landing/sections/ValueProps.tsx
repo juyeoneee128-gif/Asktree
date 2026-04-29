@@ -6,7 +6,7 @@ const values = [
     icon: Eye,
     title: '보이지 않는 위험을 먼저 알려줍니다',
     description:
-      'AI가 기존 기능을 삭제해도, 빌드는 통과합니다. 에러가 안 뜨니까 알 수도 없죠. Asktree는 매 세션마다 코드를 비교해서, 빌드는 되지만 기능이 망가진 문제를 자동으로 찾아냅니다.',
+      'AI가 기존 기능을 삭제해도, 빌드는 통과합니다. 에러가 안 뜨니까 알 수도 없죠. CodeSasu는 매 세션마다 코드를 비교해서, 빌드는 되지만 기능이 망가진 문제를 자동으로 찾아냅니다.',
   },
   {
     icon: BarChart3,
@@ -28,7 +28,7 @@ export function ValueProps() {
       <div className="max-w-[1200px] mx-auto px-6 py-20 md:py-24">
         <div className="text-center max-w-2xl mx-auto mb-14">
           <h2 className="text-[28px] md:text-[36px] font-bold text-foreground tracking-tight">
-            Asktree가 해주는 세 가지
+            CodeSasu가 해주는 세 가지
           </h2>
           <p className="mt-4 text-[16px] text-muted-foreground leading-relaxed">
             감지하고, 보여주고, 지켜줍니다.

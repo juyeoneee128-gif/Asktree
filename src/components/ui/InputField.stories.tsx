@@ -25,7 +25,7 @@ export const Default: Story = {};
 export const WithValue: Story = {
   args: {
     label: '프로젝트명',
-    defaultValue: 'Asktree',
+    defaultValue: 'CodeSasu',
   },
 };
 

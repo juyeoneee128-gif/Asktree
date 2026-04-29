@@ -95,7 +95,7 @@ function InteractiveDemo() {
           <label className="text-[13px] text-muted-foreground block mb-2">프로젝트명</label>
           <input
             type="text"
-            defaultValue="Asktree"
+            defaultValue="CodeSasu"
             className="w-full px-4 py-3 border border-border rounded-lg text-[14px] text-foreground focus:border-primary focus:outline-none"
           />
         </div>

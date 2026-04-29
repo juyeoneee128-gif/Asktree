@@ -22,7 +22,7 @@ export const ProjectSettings: Story = {
         title: '프로젝트 정보',
         content: (
           <div className="space-y-2">
-            <div><span className="text-gray-400 text-[12px]">프로젝트명</span><br />Asktree</div>
+            <div><span className="text-gray-400 text-[12px]">프로젝트명</span><br />CodeSasu</div>
             <div><span className="text-gray-400 text-[12px]">생성일</span><br />2026.03.28</div>
             <div><span className="text-gray-400 text-[12px]">사용 도구</span><br />Claude Code</div>
           </div>
@@ -40,7 +40,7 @@ export const ProjectSettings: Story = {
               <span className="text-[14px] text-foreground">연결됨</span>
             </div>
             <div><span className="text-gray-400 text-[12px]">마지막 통신</span><br />3분 전</div>
-            <div><span className="text-gray-400 text-[12px]">설치 경로</span><br />~/.asktree/agent</div>
+            <div><span className="text-gray-400 text-[12px]">설치 경로</span><br />~/.codesasu/agent</div>
           </div>
         ),
         linkLabel: '에이전트 재설치 →',

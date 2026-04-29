@@ -233,9 +233,9 @@ function Step1Content({
   connectionStatus: 'idle' | 'checking' | 'connected' | 'disconnected';
   connectionMessage: string | null;
 }) {
-  const installCmd = `curl -fsSL https://asktree.app/install.sh | \\
-  ASKTREE_PROJECT_ID=${project.id} \\
-  ASKTREE_AGENT_TOKEN=${project.agent_token ?? '<TOKEN>'} \\
+  const installCmd = `curl -fsSL https://codesasu.app/install.sh | \\
+  CODESASU_PROJECT_ID=${project.id} \\
+  CODESASU_AGENT_TOKEN=${project.agent_token ?? '<TOKEN>'} \\
   bash`;
 
   return (

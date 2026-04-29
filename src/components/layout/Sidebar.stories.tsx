@@ -34,7 +34,7 @@ const meta = {
     ),
   ],
   args: {
-    projectName: 'Asktree',
+    projectName: 'CodeSasu',
     menuItems: defaultMenuItems,
     activeMenu: 'issues',
     agentStatus: 'connected',

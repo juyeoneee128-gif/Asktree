@@ -9,11 +9,11 @@ export function LandingFooter() {
                 <span className="text-white font-bold text-sm">A</span>
               </div>
               <span className="text-[17px] font-bold text-foreground tracking-tight">
-                Asktree
+                CodeSasu
               </span>
             </div>
             <p className="text-[13px] text-muted-foreground">
-              바이브코더를 위한 코드 가디언
+              내 손안의 사수 개발자
             </p>
           </div>
 
@@ -33,17 +33,17 @@ export function LandingFooter() {
           <div className="flex flex-col gap-2 text-[13px]">
             <p className="font-semibold text-foreground mb-1">연락처</p>
             <a
-              href="mailto:hello@asktree.app"
+              href="mailto:hello@codesasu.app"
               className="text-muted-foreground hover:text-foreground transition-colors"
             >
-              hello@asktree.app
+              hello@codesasu.app
             </a>
           </div>
         </div>
 
         <div className="mt-10 pt-6 border-t border-border">
           <p className="text-[12px] text-muted-foreground">
-            © 2026 Asktree. All rights reserved.
+            © 2026 CodeSasu. All rights reserved.
           </p>
         </div>
       </div>

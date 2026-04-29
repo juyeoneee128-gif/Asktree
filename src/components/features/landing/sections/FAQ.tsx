@@ -6,7 +6,7 @@ import { ChevronDown } from 'lucide-react';
 const faqs = [
   {
     q: '코드를 모르는데 쓸 수 있나요?',
-    a: 'Asktree의 모든 안내는 비개발자 언어로 제공됩니다. Fix 명령어를 복사해서 Claude Code에 붙여넣기만 하면 됩니다.',
+    a: 'CodeSasu의 모든 안내는 비개발자 언어로 제공됩니다. Fix 명령어를 복사해서 Claude Code에 붙여넣기만 하면 됩니다.',
   },
   {
     q: '내 코드가 서버에 저장되나요?',
@@ -22,7 +22,7 @@ const faqs = [
   },
   {
     q: 'SonarQube와 뭐가 다른가요?',
-    a: 'SonarQube는 개발자용입니다. Asktree는 같은 가치(이슈 감지 + 현황 트래킹)를 비개발자 언어로 제공합니다.',
+    a: 'SonarQube는 개발자용입니다. CodeSasu는 같은 가치(이슈 감지 + 현황 트래킹)를 비개발자 언어로 제공합니다.',
   },
 ];
 

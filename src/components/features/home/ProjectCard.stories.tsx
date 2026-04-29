@@ -22,7 +22,7 @@ export const Connected: Story = {
   args: {
     project: {
       id: 'proj-1',
-      name: 'Asktree',
+      name: 'CodeSasu',
       agentStatus: 'connected',
       lastAnalysis: '5분 전',
       issueCount: { critical: 2, warning: 3, info: 1 },

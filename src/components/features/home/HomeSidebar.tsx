@@ -38,7 +38,7 @@ export function HomeSidebar({ user }: HomeSidebarProps) {
     <aside className="flex flex-col h-full w-[220px] bg-background border-r border-border shrink-0">
       {/* Logo */}
       <div className="px-4 py-4">
-        <span className="text-[18px] font-bold text-foreground">Asktree</span>
+        <span className="text-[18px] font-bold text-foreground">CodeSasu</span>
       </div>
 
       <div className="h-px bg-border" />

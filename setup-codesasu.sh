@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Asktree 로컬 에이전트 설치 스크립트
+# CodeSasu 로컬 에이전트 설치 스크립트
 #
 # 사용법:
-#   ./setup-asktree.sh --project-id <uuid> --token <agent-token> [--api-url <url>]
+#   ./setup-codesasu.sh --project-id <uuid> --token <agent-token> [--api-url <url>]
 #
 # 환경변수로도 전달 가능:
-#   ASKTREE_PROJECT_ID=<uuid> ASKTREE_AGENT_TOKEN=<token> ./setup-asktree.sh
+#   CODESASU_PROJECT_ID=<uuid> CODESASU_AGENT_TOKEN=<token> ./setup-codesasu.sh
 
 set -euo pipefail
 
@@ -23,18 +23,18 @@ err()  { echo "${C_RED}✗${C_RESET} $*" >&2; }
 # ─── 경로 ─────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AGENT_SRC="$SCRIPT_DIR/agent"
-ASKTREE_HOME="$HOME/.asktree"
-AGENT_DEST="$ASKTREE_HOME/agent"
-CONFIG_PATH="$ASKTREE_HOME/config.env"
-LOG_DIR="$ASKTREE_HOME/logs"
-SERVICE_LABEL="com.asktree.agent"
+CODESASU_HOME="$HOME/.codesasu"
+AGENT_DEST="$CODESASU_HOME/agent"
+CONFIG_PATH="$CODESASU_HOME/config.env"
+LOG_DIR="$CODESASU_HOME/logs"
+SERVICE_LABEL="com.codesasu.agent"
 LAUNCHD_PLIST="$HOME/Library/LaunchAgents/${SERVICE_LABEL}.plist"
-SYSTEMD_UNIT="$HOME/.config/systemd/user/asktree-agent.service"
+SYSTEMD_UNIT="$HOME/.config/systemd/user/codesasu-agent.service"
 
 # ─── 인자 파싱 ────────────────────────────────────────
-PROJECT_ID="${ASKTREE_PROJECT_ID:-}"
-AGENT_TOKEN="${ASKTREE_AGENT_TOKEN:-}"
-API_URL="${ASKTREE_API_URL:-http://localhost:3000}"
+PROJECT_ID="${CODESASU_PROJECT_ID:-}"
+AGENT_TOKEN="${CODESASU_AGENT_TOKEN:-}"
+API_URL="${CODESASU_API_URL:-http://localhost:3000}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -43,15 +43,15 @@ while [[ $# -gt 0 ]]; do
     --api-url)    API_URL="$2"; shift 2 ;;
     -h|--help)
       cat <<EOF
-Asktree 에이전트 설치 스크립트
+CodeSasu 에이전트 설치 스크립트
 
 사용법:
   $0 --project-id <uuid> --token <agent-token> [--api-url <url>]
 
 옵션:
-  --project-id  Asktree 프로젝트 UUID (필수)
+  --project-id  CodeSasu 프로젝트 UUID (필수)
   --token       에이전트 토큰 (필수)
-  --api-url     Asktree API URL (기본: http://localhost:3000)
+  --api-url     CodeSasu API URL (기본: http://localhost:3000)
 EOF
       exit 0 ;;
     *) err "Unknown option: $1"; exit 1 ;;
@@ -60,10 +60,10 @@ done
 
 # ─── 누락 값 프롬프트 ─────────────────────────────────
 if [[ -z "$PROJECT_ID" ]]; then
-  read -rp "ASKTREE_PROJECT_ID: " PROJECT_ID
+  read -rp "CODESASU_PROJECT_ID: " PROJECT_ID
 fi
 if [[ -z "$AGENT_TOKEN" ]]; then
-  read -rsp "ASKTREE_AGENT_TOKEN: " AGENT_TOKEN
+  read -rsp "CODESASU_AGENT_TOKEN: " AGENT_TOKEN
   echo
 fi
 if [[ -z "$PROJECT_ID" || -z "$AGENT_TOKEN" ]]; then
@@ -108,10 +108,10 @@ ok "의존성 설치 완료"
 log "$CONFIG_PATH 작성"
 umask 077
 cat > "$CONFIG_PATH" <<EOF
-# Asktree 에이전트 설정 (자동 생성)
-ASKTREE_PROJECT_ID=$PROJECT_ID
-ASKTREE_AGENT_TOKEN=$AGENT_TOKEN
-ASKTREE_API_URL=$API_URL
+# CodeSasu 에이전트 설정 (자동 생성)
+CODESASU_PROJECT_ID=$PROJECT_ID
+CODESASU_AGENT_TOKEN=$AGENT_TOKEN
+CODESASU_API_URL=$API_URL
 EOF
 chmod 600 "$CONFIG_PATH"
 ok "config.env 작성 완료 (권한 600)"
@@ -162,7 +162,7 @@ install_systemd() {
   mkdir -p "$(dirname "$SYSTEMD_UNIT")"
   cat > "$SYSTEMD_UNIT" <<EOF
 [Unit]
-Description=Asktree Local Agent
+Description=CodeSasu Local Agent
 After=network-online.target
 
 [Service]
@@ -177,7 +177,7 @@ StandardError=append:${LOG_DIR}/systemd.err.log
 WantedBy=default.target
 EOF
   systemctl --user daemon-reload
-  systemctl --user enable --now asktree-agent.service
+  systemctl --user enable --now codesasu-agent.service
   ok "systemd 서비스 등록/시작 완료"
 }
 
@@ -206,7 +206,7 @@ else
     echo "  - $LOG_DIR/launchd.err.log"
   else
     echo "  - $LOG_DIR/systemd.err.log"
-    echo "  - systemctl --user status asktree-agent"
+    echo "  - systemctl --user status codesasu-agent"
   fi
   exit 1
 fi

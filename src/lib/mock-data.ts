@@ -1,5 +1,5 @@
 /**
- * Asktree Mock Data (중앙 관리)
+ * CodeSasu Mock Data (중앙 관리)
  * API 연동 시 이 파일만 교체하면 됨.
  */
 
@@ -18,7 +18,7 @@ export interface Project {
 export const mockProjects: Project[] = [
   {
     id: 'proj-1',
-    name: 'Asktree',
+    name: 'CodeSasu',
     agentStatus: 'connected',
     lastAnalysis: '5분 전',
     issueCount: { critical: 2, warning: 3, info: 1 },
@@ -529,7 +529,7 @@ export const mockSessions: Session[] = [
     date: '3/13 14:00 · 첫 분석',
     filesChanged: 0,
     toolUseCount: 1,
-    summary: 'Next.js 프로젝트를 새로 만들고 Asktree 에이전트를 연결했습니다.',
+    summary: 'Next.js 프로젝트를 새로 만들고 CodeSasu 에이전트를 연결했습니다.',
     changedFiles: [],
     prompts: ['Next.js 16 프로젝트를 만들어줘.'],
     log: [
@@ -567,7 +567,7 @@ export const mockSpecDocuments: SpecDocument[] = [
   },
   {
     id: 'doc-2',
-    name: 'Asktree_PRD_v6.0.md',
+    name: 'CodeSasu_PRD_v6.0.md',
     uploadedAt: '2026.03.17',
     type: 'PRD',
   },

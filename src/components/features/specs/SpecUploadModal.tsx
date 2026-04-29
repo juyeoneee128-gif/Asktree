@@ -90,7 +90,7 @@ export function SpecUploadModal({ isOpen, onClose, onSubmit }: SpecUploadModalPr
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="예: Asktree_PRD_v6.0.md"
+              placeholder="예: CodeSasu_PRD_v6.0.md"
               className="w-full h-10 px-3 rounded-lg border border-border bg-background text-[14px] text-foreground focus:outline-none focus:border-primary disabled:cursor-not-allowed"
             />
           </div>

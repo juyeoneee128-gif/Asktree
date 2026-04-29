@@ -1,4 +1,4 @@
-# Asktree — CLAUDE.md
+# CodeSasu — CLAUDE.md
 
 Claude Code 프로젝트의 코드 파손 감지 + 복구 + 보호 도구 (MVP)
 
@@ -75,10 +75,10 @@ agent/                        # 로컬 에이전트 (Node 데몬)
   watcher.js                  # chokidar로 ~/.claude/projects/*.jsonl 감시 + idle 감지
   collector.js                # JSONL 파싱 + git diff 수집
   sender.js                   # POST /api/agent/push (지수 백오프 재시도)
-  state.js                    # ~/.asktree/state.json 영속 (중복 push 방지)
+  state.js                    # ~/.codesasu/state.json 영속 (중복 push 방지)
   package.json
 
-setup-asktree.sh              # 에이전트 설치 스크립트 (launchd/systemd 등록)
+setup-codesasu.sh              # 에이전트 설치 스크립트 (launchd/systemd 등록)
 
 stories/                      # Storybook 설정
 docs/                         # PRD, 기능명세서
@@ -518,7 +518,7 @@ app/api/
 |---|------|------|
 | 1 | DB | Supabase (PostgreSQL) — 신규 프로젝트 생성 |
 | 2 | 인증 | Supabase Auth + Google OAuth |
-| 3 | 로컬 에이전트 | 백엔드 범위 포함 (setup-asktree.sh) |
+| 3 | 로컬 에이전트 | 백엔드 범위 포함 (setup-codesasu.sh) |
 | 4 | 진행 순서 | Tier 0부터 순서대로 |
 
 ### 진행 현황
@@ -540,24 +540,24 @@ app/api/
 Claude Code 세션 JSONL을 감시해 `/api/agent/push`로 자동 전송하는 Node 데몬.
 
 ### 구성
-- `agent/index.js` — 엔트리, `~/.asktree/config.env` 로드, SIGTERM/SIGINT graceful shutdown
+- `agent/index.js` — 엔트리, `~/.codesasu/config.env` 로드, SIGTERM/SIGINT graceful shutdown
 - `agent/watcher.js` — chokidar로 `~/.claude/projects/**/*.jsonl` 감시, 파일당 idle 타이머(기본 60s) + in-flight 가드
 - `agent/collector.js` — JSONL에서 sessionId/cwd 추출, `git diff HEAD` 수집, 파일당 10KB / 전체 9MB 예산
 - `agent/sender.js` — POST `/api/agent/push`, 5xx 지수 백오프 3회(1s/3s/9s), 409 중복은 성공 처리
-- `agent/state.js` — `~/.asktree/state.json`에 pushed_session_ids 보관 (상한 1000)
-- `setup-asktree.sh` — `~/.asktree/agent/` 설치 + macOS launchd / Linux systemd --user 등록
+- `agent/state.js` — `~/.codesasu/state.json`에 pushed_session_ids 보관 (상한 1000)
+- `setup-codesasu.sh` — `~/.codesasu/agent/` 설치 + macOS launchd / Linux systemd --user 등록
 
-### 환경변수 (`~/.asktree/config.env`, 권한 600)
-- `ASKTREE_PROJECT_ID` (필수)
-- `ASKTREE_AGENT_TOKEN` (필수)
-- `ASKTREE_API_URL` (기본 `http://localhost:3000`)
-- `ASKTREE_IDLE_TIMEOUT_MS` (기본 60000)
-- `ASKTREE_CLAUDE_DIR` (기본 `~/.claude/projects`)
+### 환경변수 (`~/.codesasu/config.env`, 권한 600)
+- `CODESASU_PROJECT_ID` (필수)
+- `CODESASU_AGENT_TOKEN` (필수)
+- `CODESASU_API_URL` (기본 `http://localhost:3000`)
+- `CODESASU_IDLE_TIMEOUT_MS` (기본 60000)
+- `CODESASU_CLAUDE_DIR` (기본 `~/.claude/projects`)
 
 ### 설치
 
 ```
-./setup-asktree.sh --project-id <uuid> --token <agent-token> [--api-url <url>]
+./setup-codesasu.sh --project-id <uuid> --token <agent-token> [--api-url <url>]
 ```
 
 ### 진행 현황

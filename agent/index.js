@@ -8,10 +8,10 @@ import { collectSession } from './collector.js';
 import { pushSession } from './sender.js';
 
 const HOME = homedir();
-const ASKTREE_HOME = join(HOME, '.asktree');
-const CONFIG_PATH = join(ASKTREE_HOME, 'config.env');
-const STATE_PATH = join(ASKTREE_HOME, 'state.json');
-const LOG_PATH = join(ASKTREE_HOME, 'logs', 'agent.log');
+const CODESASU_HOME = join(HOME, '.codesasu');
+const CONFIG_PATH = join(CODESASU_HOME, 'config.env');
+const STATE_PATH = join(CODESASU_HOME, 'state.json');
+const LOG_PATH = join(CODESASU_HOME, 'logs', 'agent.log');
 const DEFAULT_CLAUDE_DIR = join(HOME, '.claude', 'projects');
 const DEFAULT_IDLE_TIMEOUT_MS = 60_000;
 const DEFAULT_API_URL = 'http://localhost:3000';
@@ -32,15 +32,15 @@ async function loadConfig() {
   const fromFile = parseEnvFile(raw);
   const merged = { ...fromFile, ...pickEnv() };
 
-  const projectId = merged.ASKTREE_PROJECT_ID;
-  const token = merged.ASKTREE_AGENT_TOKEN;
-  const apiUrl = merged.ASKTREE_API_URL || DEFAULT_API_URL;
-  const idleTimeoutMs = parseInt(merged.ASKTREE_IDLE_TIMEOUT_MS || '', 10) || DEFAULT_IDLE_TIMEOUT_MS;
-  const claudeDir = merged.ASKTREE_CLAUDE_DIR || DEFAULT_CLAUDE_DIR;
+  const projectId = merged.CODESASU_PROJECT_ID;
+  const token = merged.CODESASU_AGENT_TOKEN;
+  const apiUrl = merged.CODESASU_API_URL || DEFAULT_API_URL;
+  const idleTimeoutMs = parseInt(merged.CODESASU_IDLE_TIMEOUT_MS || '', 10) || DEFAULT_IDLE_TIMEOUT_MS;
+  const claudeDir = merged.CODESASU_CLAUDE_DIR || DEFAULT_CLAUDE_DIR;
 
   const missing = [];
-  if (!projectId) missing.push('ASKTREE_PROJECT_ID');
-  if (!token) missing.push('ASKTREE_AGENT_TOKEN');
+  if (!projectId) missing.push('CODESASU_PROJECT_ID');
+  if (!token) missing.push('CODESASU_AGENT_TOKEN');
   if (missing.length > 0) {
     throw new Error(
       `Missing required config: ${missing.join(', ')}. Set in ${CONFIG_PATH} or environment.`
@@ -72,11 +72,11 @@ function parseEnvFile(text) {
 
 function pickEnv() {
   const keys = [
-    'ASKTREE_PROJECT_ID',
-    'ASKTREE_AGENT_TOKEN',
-    'ASKTREE_API_URL',
-    'ASKTREE_IDLE_TIMEOUT_MS',
-    'ASKTREE_CLAUDE_DIR',
+    'CODESASU_PROJECT_ID',
+    'CODESASU_AGENT_TOKEN',
+    'CODESASU_API_URL',
+    'CODESASU_IDLE_TIMEOUT_MS',
+    'CODESASU_CLAUDE_DIR',
   ];
   const out = {};
   for (const k of keys) {
@@ -90,7 +90,7 @@ function createLogger() {
     const line = `[${new Date().toISOString()}] [${level}] ${msg}\n`;
     process.stdout.write(line);
     try {
-      await mkdir(join(ASKTREE_HOME, 'logs'), { recursive: true });
+      await mkdir(join(CODESASU_HOME, 'logs'), { recursive: true });
       await appendFile(LOG_PATH, line, 'utf8');
     } catch {
       // 로그 파일 쓰기 실패는 무시 (stdout으로는 출력됨)
@@ -114,7 +114,7 @@ async function main() {
   }
 
   await logger.info(
-    `Asktree agent starting — project=${config.projectId} api=${config.apiUrl} idle=${config.idleTimeoutMs}ms`
+    `CodeSasu agent starting — project=${config.projectId} api=${config.apiUrl} idle=${config.idleTimeoutMs}ms`
   );
 
   const state = new State(STATE_PATH);

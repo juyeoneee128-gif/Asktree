@@ -23,7 +23,7 @@ function LoginContent() {
       <div className="flex flex-col items-center gap-8 max-w-[360px] w-full">
         {/* Logo */}
         <div className="flex flex-col items-center gap-2">
-          <h1 className="text-[28px] font-bold text-foreground">Asktree</h1>
+          <h1 className="text-[28px] font-bold text-foreground">CodeSasu</h1>
           <p className="text-[14px] text-muted-foreground text-center leading-relaxed">
             AI가 망가뜨린 코드를 자동으로 감지하고,<br />
             고치는 법을 알려주고, 다시는 안 망가지게 지켜줍니다.

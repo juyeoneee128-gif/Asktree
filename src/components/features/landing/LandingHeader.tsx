@@ -39,7 +39,7 @@ export function LandingHeader() {
             <span className="text-white font-bold text-sm">A</span>
           </div>
           <span className="text-[17px] font-bold text-foreground tracking-tight">
-            Asktree
+            CodeSasu
           </span>
           <span className="bg-primary text-white text-xs px-2 py-0.5 rounded-full font-semibold">
             beta

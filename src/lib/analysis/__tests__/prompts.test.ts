@@ -13,13 +13,13 @@ import {
 describe('프롬프트 템플릿', () => {
   it('정적 분석 메시지를 올바르게 조립한다', () => {
     const msg = buildStaticAnalysisMessage({
-      projectName: 'Asktree',
+      projectName: 'CodeSasu',
       sessionTitle: '로그인 에러 처리 추가',
       filesChanged: ['src/auth/login.ts', 'src/auth/error.ts'],
       diffs: '--- src/auth/login.ts ---\n+ try {',
     });
 
-    expect(msg).toContain('Asktree');
+    expect(msg).toContain('CodeSasu');
     expect(msg).toContain('로그인 에러 처리 추가');
     expect(msg).toContain('src/auth/login.ts');
     expect(msg).toContain('+ try {');

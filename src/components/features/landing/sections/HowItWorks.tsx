@@ -14,7 +14,7 @@ const steps = [
   {
     icon: Sparkles,
     title: '자동 분석',
-    description: '세션이 끝나면 Asktree가 코드를 분석합니다.',
+    description: '세션이 끝나면 CodeSasu가 코드를 분석합니다.',
   },
   {
     icon: CheckCircle2,

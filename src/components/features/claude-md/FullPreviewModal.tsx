@@ -8,7 +8,7 @@ export interface FullPreviewModalProps {
   isOpen: boolean;
   onClose: () => void;
   guidelines: Guideline[];
-  /** 헤더에 보여줄 프로젝트명 (예: "ASKTREE") */
+  /** 헤더에 보여줄 프로젝트명 (예: "CODESASU") */
   projectName?: string;
 }
 
@@ -16,7 +16,7 @@ export function FullPreviewModal({
   isOpen,
   onClose,
   guidelines,
-  projectName = 'ASKTREE',
+  projectName = 'CODESASU',
 }: FullPreviewModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
