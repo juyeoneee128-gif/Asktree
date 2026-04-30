@@ -12,19 +12,13 @@ export function Hero() {
             내 손안의 사수 개발자
           </h1>
           <p className="mt-7 text-[18px] md:text-[20px] text-muted-foreground leading-relaxed max-w-2xl">
-            내 코딩 과정을 기억하는 사수: 코드를 몰라도 괜찮아요.
+            AI가 내 코딩 과정을 지켜보고,
             <br />
-            사수가 지켜보고 있으니까.
+            문제가 생기면 먼저 알려줍니다
           </p>
-          <div className="mt-10 flex flex-col sm:flex-row items-center gap-4">
+          <div className="mt-10 flex justify-center">
             <a href="#register">
               <Button size="lg">사전 등록하기</Button>
-            </a>
-            <a
-              href="#features"
-              className="text-[14px] font-medium text-muted-foreground hover:text-foreground transition-colors"
-            >
-              더 알아보기 ↓
             </a>
           </div>
         </div>

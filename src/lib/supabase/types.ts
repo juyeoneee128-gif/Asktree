@@ -288,12 +288,40 @@ export interface Database {
         };
         Relationships: [];
       };
+      inquiries: {
+        Row: {
+          id: string;
+          name: string;
+          email: string;
+          organization: string | null;
+          content: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          email: string;
+          organization?: string | null;
+          content: string;
+          created_at?: string;
+        };
+        Update: {
+          name?: string;
+          email?: string;
+          organization?: string | null;
+          content?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;
     };
     Functions: {
-      [_ in never]: never;
+      waitlist_count: {
+        Args: Record<string, never>;
+        Returns: number;
+      };
     };
     Enums: {
       [_ in never]: never;

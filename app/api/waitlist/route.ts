@@ -3,6 +3,21 @@ import { createClient } from '@/src/lib/supabase/server';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// GET /api/waitlist — 사전 등록자 수
+export async function GET() {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc('waitlist_count');
+
+  if (error) {
+    return NextResponse.json(
+      { error: '카운트 조회 중 오류가 발생했습니다.' },
+      { status: 500 }
+    );
+  }
+
+  return NextResponse.json({ count: data ?? 0 });
+}
+
 // POST /api/waitlist — 사전 등록
 export async function POST(request: Request) {
   let body: { email?: unknown };

@@ -11,31 +11,31 @@ const features: Feature[] = [
   {
     eyebrow: '01 · 자동 수집',
     title: '에이전트가 알아서 수집합니다',
-    body: '터미널에 한 줄 설치하면, Claude Code 세션이 끝날 때마다 코드 변경과 작업 내역을 자동으로 수집합니다. 기획서(docs/*.md)도 함께 가져옵니다.',
+    body: '터미널에 한 줄 설치하면, Claude Code 세션이 끝날 때마다 코드 변경, 작업 내역, 기획서(docs/*.md)를 자동으로 수집합니다. 따로 업로드하거나 설정할 필요 없습니다.',
     visualLabel: 'CLI 터미널 — 에이전트 로그',
   },
   {
-    eyebrow: '02 · 세션 정돈',
-    title: '내 코딩 과정을 기억합니다',
-    body: '"이번 세션에서: 결제 모듈 추가, 인증 미들웨어 수정". 세션마다 무엇을 했는지 자동으로 정리합니다. 코드를 몰라도 프로젝트의 현재 상태를 한눈에 파악하세요.',
+    eyebrow: '02 · 세션 보관',
+    title: '내 코딩 과정을 아카이빙합니다',
+    body: '"이번 세션: 결제 모듈 추가, 인증 미들웨어 수정". 세션마다 무엇을 했는지 자동으로 정리합니다. 코드를 몰라도 프로젝트의 현재 상태를 한눈에 파악할 수 있습니다.',
     visualLabel: '세션 요약 화면',
   },
   {
-    eyebrow: '03 · 이슈 감지 + Fix',
-    title: '보이지 않는 위험을 먼저 알려줍니다',
-    body: '빌드는 되지만 기능이 깨진 문제, 보안 취약점, 환경변수 누락까지 자동으로 감지합니다. Fix 명령어를 복사해서 Claude Code에 붙여넣기만 하세요.',
+    eyebrow: '03 · 이슈 감지',
+    title: '보이지 않는 이슈를 먼저 알려줍니다',
+    body: '빌드는 되지만 기능이 깨진 문제, 인증을 우회하는 위험한 코드, 같은 기능이 중복으로 만들어진 구조까지. 코드를 몰라도 문제의 심각도와 해결 방법을 바로 확인할 수 있습니다.',
     visualLabel: '이슈 탭 — Fact / Detail / Fix',
   },
   {
     eyebrow: '04 · 현황 트래킹',
-    title: '기획 대비 어디까지 왔는지 한눈에 보여줍니다',
-    body: '기획서에 적은 기능이 실제로 얼마나 구현되었는지 PRD vs 코드를 자동 대조합니다. 구현률 바와 기능 목록으로 진행 상황을 시각화합니다.',
+    title: '기획 대비 어디까지 왔는지 한눈에',
+    body: '기획서에 적은 기능이 실제로 얼마나 구현되었는지 자동 대조합니다. 구현률 바와 기능 목록으로 진행 상황을 시각화합니다.',
     visualLabel: '현황 탭 — 구현률 + 기능 목록',
   },
   {
     eyebrow: '05 · 보호 규칙',
-    title: '한 번 당한 문제는 두 번 없게 지켜줍니다',
-    body: '감지된 문제를 보호 규칙으로 자동 생성합니다. 규칙이 쌓일수록 AI가 함부로 건드리지 못하는 선순환이 만들어집니다.',
+    title: '한 번 발생한 문제는 두 번 없도록',
+    body: '감지된 문제를 CLAUDE.md 보호 규칙으로 자동 생성합니다. 규칙이 쌓일수록 AI가 같은 실수를 반복하지 않는 선순환이 만들어집니다.',
     visualLabel: 'CLAUDE.md 탭 — 보호 규칙',
   },
 ];
@@ -52,7 +52,7 @@ function FeatureBlock({ feature, reverse }: { feature: Feature; reverse: boolean
         <p className="text-[13px] font-semibold text-primary tracking-wide mb-4">
           {feature.eyebrow}
         </p>
-        <h3 className="text-[28px] md:text-[36px] leading-[1.2] font-bold text-foreground tracking-tight">
+        <h3 className="text-[24px] md:text-[32px] leading-[1.25] font-bold text-foreground tracking-tight">
           {feature.title}
         </h3>
         <p className="mt-5 text-[15px] md:text-[16px] text-muted-foreground leading-relaxed">
@@ -86,7 +86,7 @@ export function Features() {
               Features
             </p>
             <h2 className="text-[32px] md:text-[44px] leading-[1.15] font-bold text-foreground tracking-tight">
-              사수가 옆에서 하는 일
+              CodeSasu로 안정적으로 개발하기
             </h2>
           </div>
         </FadeIn>

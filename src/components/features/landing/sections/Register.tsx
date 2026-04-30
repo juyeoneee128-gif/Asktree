@@ -36,14 +36,14 @@ export function Register() {
 
       if (res.ok) {
         setStatus('success');
-        setMessage('등록 완료! Beta 출시 시 이메일로 알려드리겠습니다.');
+        setMessage('등록 완료! Beta 출시 시 이메일로 알려드릴게요');
         return;
       }
 
       const body = await res.json().catch(() => ({}));
       if (res.status === 409) {
         setStatus('success');
-        setMessage('이미 등록된 이메일입니다. Beta 출시 시 알려드릴게요.');
+        setMessage('이미 등록된 이메일이에요. Beta 출시 시 알려드릴게요');
         return;
       }
 
@@ -63,12 +63,12 @@ export function Register() {
       <div className="max-w-3xl mx-auto px-6 py-24 md:py-32 text-center">
         <FadeIn>
           <h2 className="text-[32px] md:text-[44px] leading-[1.15] font-bold text-foreground tracking-tight">
-            사수가 준비되고 있습니다.
+            내 손안의 사수 개발자
           </h2>
           <p className="mt-5 text-[16px] md:text-[17px] text-muted-foreground leading-relaxed">
-            Beta 출시 시 가장 먼저 알려드립니다.
+            Beta 출시 시 가장 먼저 알려드립니다
             <br />
-            사전 등록하시면 무료 500 크레딧을 드립니다.
+            사전 등록하시면 무료 500 크레딧을 드려요
           </p>
         </FadeIn>
 
@@ -126,7 +126,7 @@ export function Register() {
               </>
             )}
             <p className="mt-5 text-[13px] text-muted-foreground">
-              곧 출시 — 사전 등록하고 가장 먼저 만나보세요.
+              곧 출시 — 사전 등록하고 가장 먼저 만나보세요
             </p>
           </div>
         </FadeIn>

@@ -5,17 +5,17 @@ const policies = [
   {
     Icon: Lock,
     title: '코드 원본은 저장하지 않습니다',
-    body: '분석 후 즉시 파기 (Ephemeral Processing).',
+    body: '분석 후 즉시 파기 (Ephemeral Processing)',
   },
   {
     Icon: ShieldCheck,
     title: '암호화된 통신',
-    body: 'HTTPS + AES-256 암호화 저장.',
+    body: 'HTTPS + AES-256 암호화 저장',
   },
   {
     Icon: FileSearch,
     title: '투명한 수집 범위',
-    body: '수집: 세션 로그, 변경 diff, docs 문서. 미수집: .env, 비밀번호, 개인정보.',
+    body: '수집: 세션 로그, 변경 diff, docs 문서\n미수집: .env, 비밀번호, 개인정보',
   },
 ];
 
@@ -29,7 +29,7 @@ export function DataPolicy() {
               Data policy
             </p>
             <h2 className="text-[32px] md:text-[44px] leading-[1.15] font-bold text-foreground tracking-tight">
-              당신의 코드는 안전합니다.
+              당신의 코드는 안전합니다
             </h2>
           </div>
         </FadeIn>
@@ -44,7 +44,7 @@ export function DataPolicy() {
                 <h3 className="text-[16px] font-bold text-foreground tracking-tight">
                   {title}
                 </h3>
-                <p className="mt-2.5 text-[14px] text-muted-foreground leading-relaxed">
+                <p className="mt-2.5 text-[14px] text-muted-foreground leading-relaxed whitespace-pre-line">
                   {body}
                 </p>
               </div>

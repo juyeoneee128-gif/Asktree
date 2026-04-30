@@ -4,15 +4,21 @@ import { NextResponse, type NextRequest } from 'next/server';
 /**
  * 공개 경로 판정:
  * - / (랜딩 페이지)
+ * - /about, /contact (랜딩 서브 페이지)
  * - /auth/* (로그인/콜백/로그아웃)
  * - /api/agent/* (로컬 에이전트 데이터 수신 — 별도 토큰 검증)
+ * - /api/waitlist, /api/inquiries (랜딩 폼 — RLS로 anon insert 허용)
  * 나머지는 인증 필요.
  */
 function isPublicPath(pathname: string): boolean {
   return (
     pathname === '/' ||
+    pathname === '/about' ||
+    pathname === '/contact' ||
     pathname.startsWith('/auth') ||
-    pathname.startsWith('/api/agent')
+    pathname.startsWith('/api/agent') ||
+    pathname.startsWith('/api/waitlist') ||
+    pathname.startsWith('/api/inquiries')
   );
 }
 

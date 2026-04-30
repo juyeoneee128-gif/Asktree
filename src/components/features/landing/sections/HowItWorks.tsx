@@ -4,17 +4,17 @@ const steps = [
   {
     number: '01',
     title: '에이전트 설치',
-    body: '터미널에 한 줄 붙여넣기. 3분이면 끝.',
+    body: '터미널에 붙여넣어 간편하게 설치',
   },
   {
     number: '02',
     title: '평소처럼 코딩',
-    body: 'Claude Code로 작업하세요. 백그라운드에서 자동 수집.',
+    body: 'Claude Code로 작업하면, 백그라운드에서 자동 수집',
   },
   {
     number: '03',
     title: '웹에서 확인',
-    body: '코딩이 끝나면 CodeSasu를 열어보세요. 이슈, 현황, 세션 요약이 이미 준비되어 있습니다.',
+    body: '코딩이 끝나면 CodeSasu에서 이슈, 현황, 세션 요약 확인',
   },
 ];
 
@@ -28,7 +28,7 @@ export function HowItWorks() {
               How it works
             </p>
             <h2 className="text-[32px] md:text-[44px] leading-[1.15] font-bold text-foreground tracking-tight">
-              사용법은 단순합니다.
+              사용법은 간단해요
             </h2>
           </div>
         </FadeIn>

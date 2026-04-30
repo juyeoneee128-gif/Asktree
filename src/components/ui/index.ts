@@ -49,5 +49,8 @@ export type { DropdownProps, DropdownItem } from './Dropdown';
 export { InputField } from './InputField';
 export type { InputFieldProps } from './InputField';
 
+export { Textarea } from './Textarea';
+export type { TextareaProps } from './Textarea';
+
 export { Stepper } from './Stepper';
 export type { StepperProps, StepperStep } from './Stepper';

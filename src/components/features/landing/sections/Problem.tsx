@@ -1,9 +1,9 @@
 import { FadeIn } from '@/src/components/features/landing/_components/FadeIn';
 
 const pains = [
-  '리팩토링했더니 결제 기능이 사라졌는데, 이틀 뒤에 발견',
-  '빌드는 되는데, 뭐가 잘못된 건지 알 수가 없음',
-  '컨텍스트가 길어지면서 코드가 슬금슬금 변형됨',
+  '리팩토링했더니 결제 기능이 사라졌는데, 이틀 뒤에 발견했어요',
+  '빌드는 되는데, 뭐가 잘못된 건지 모르겠어요',
+  '대화가 길어지면서 코드가 슬금슬금 변형되는 것 같아요',
 ];
 
 export function Problem() {
@@ -13,9 +13,9 @@ export function Problem() {
         <FadeIn>
           <blockquote className="max-w-3xl mx-auto text-center">
             <p className="text-[28px] md:text-[36px] leading-[1.4] font-semibold text-foreground tracking-tight">
-              &ldquo;AI한테 &lsquo;이거 만들어줘&rsquo; 하면 뚝딱 나오는데,
+              AI한테 &lsquo;이거 만들어줘&rsquo; 하면 뚝딱 나오는데,
               <br className="hidden md:block" />
-              왜 자꾸 어딘가가 망가져 있을까요?&rdquo;
+              왜 자꾸 어딘가가 망가져 있을까요?
             </p>
           </blockquote>
         </FadeIn>
