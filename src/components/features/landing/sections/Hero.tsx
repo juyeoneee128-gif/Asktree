@@ -5,21 +5,25 @@ export function Hero() {
     <section className="relative overflow-hidden">
       <div className="max-w-[1200px] mx-auto px-6 pt-20 pb-16 md:pt-32 md:pb-24">
         <div className="flex flex-col items-center text-center max-w-3xl mx-auto">
-          <span className="inline-block text-[13px] font-semibold text-primary bg-orange-50 px-3 py-1 rounded-pill mb-6">
-            Beta
+          <span className="inline-flex items-center gap-1.5 text-[14px] font-semibold text-primary bg-orange-50 px-4 py-1.5 rounded-pill mb-6">
+            <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+            Beta · 사전 등록 중
           </span>
           <h1 className="text-[40px] md:text-[56px] leading-[1.1] font-bold text-foreground tracking-tight">
             내 손안의 사수 개발자
           </h1>
-          <p className="mt-7 text-[18px] md:text-[20px] text-muted-foreground leading-relaxed max-w-2xl">
+          <p className="mt-7 text-[18px] md:text-[20px] font-medium text-muted-foreground leading-relaxed max-w-2xl">
             AI가 내 코딩 과정을 지켜보고,
             <br />
             문제가 생기면 먼저 알려줍니다
           </p>
-          <div className="mt-10 flex justify-center">
+          <div className="mt-10 flex flex-col items-center gap-3">
             <a href="#register">
               <Button size="lg">사전 등록하기</Button>
             </a>
+            <p className="text-sm text-muted-foreground">
+              사전 등록 시 무료 500 크레딧 (약 25회 분석)
+            </p>
           </div>
         </div>
 

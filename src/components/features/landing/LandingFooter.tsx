@@ -52,7 +52,7 @@ export function LandingFooter() {
 
         <div className="mt-10 pt-6 border-t border-border">
           <p className="text-[12px] text-muted-foreground">
-            © 2026 CodeSasu. All rights reserved.
+            © 2026 CodeSasu · All rights reserved
           </p>
         </div>
       </div>

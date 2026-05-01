@@ -5,7 +5,7 @@ const policies = [
   {
     Icon: Lock,
     title: '코드 원본은 저장하지 않습니다',
-    body: '분석 후 즉시 파기 (Ephemeral Processing)',
+    body: '분석 후 즉시 파기',
   },
   {
     Icon: ShieldCheck,
@@ -22,12 +22,9 @@ const policies = [
 export function DataPolicy() {
   return (
     <section className="bg-white">
-      <div className="max-w-[1200px] mx-auto px-6 py-24 md:py-32">
+      <div className="max-w-[1200px] mx-auto px-6 py-16 md:py-24">
         <FadeIn>
-          <div className="max-w-2xl text-center mx-auto mb-16">
-            <p className="text-[13px] font-semibold text-primary tracking-wide mb-3">
-              Data policy
-            </p>
+          <div className="max-w-2xl text-center mx-auto mb-14">
             <h2 className="text-[32px] md:text-[44px] leading-[1.15] font-bold text-foreground tracking-tight">
               당신의 코드는 안전합니다
             </h2>
@@ -37,14 +34,14 @@ export function DataPolicy() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-5xl mx-auto">
           {policies.map(({ Icon, title, body }, idx) => (
             <FadeIn key={title} delay={idx * 100}>
-              <div className="h-full rounded-2xl border border-border bg-white p-7">
-                <div className="w-10 h-10 rounded-lg bg-orange-50 flex items-center justify-center mb-5">
-                  <Icon size={20} className="text-primary" />
+              <div className="h-full rounded-2xl border border-border bg-[#FAFAF9] p-7">
+                <div className="w-10 h-10 rounded-lg bg-[#FFF7ED] flex items-center justify-center mb-5">
+                  <Icon size={20} className="text-[#E67D22]" />
                 </div>
-                <h3 className="text-[16px] font-bold text-foreground tracking-tight">
+                <h3 className="text-[16px] font-semibold text-foreground tracking-tight">
                   {title}
                 </h3>
-                <p className="mt-2.5 text-[14px] text-muted-foreground leading-relaxed whitespace-pre-line">
+                <p className="mt-2.5 text-[14px] font-medium text-muted-foreground leading-relaxed whitespace-pre-line">
                   {body}
                 </p>
               </div>

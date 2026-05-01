@@ -20,7 +20,7 @@ export function Register() {
     const trimmed = email.trim();
     if (!trimmed) {
       setStatus('error');
-      setMessage('이메일을 입력해주세요.');
+      setMessage('이메일을 입력해주세요');
       return;
     }
 
@@ -43,15 +43,15 @@ export function Register() {
       const body = await res.json().catch(() => ({}));
       if (res.status === 409) {
         setStatus('success');
-        setMessage('이미 등록된 이메일이에요. Beta 출시 시 알려드릴게요');
+        setMessage('이미 등록된 이메일이에요 Beta 출시 시 알려드릴게요');
         return;
       }
 
       setStatus('error');
-      setMessage(body.error ?? '등록에 실패했습니다. 잠시 후 다시 시도해주세요.');
+      setMessage(body.error ?? '등록에 실패했습니다 잠시 후 다시 시도해주세요');
     } catch {
       setStatus('error');
-      setMessage('네트워크 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+      setMessage('네트워크 오류가 발생했습니다 잠시 후 다시 시도해주세요');
     }
   }
 
@@ -60,12 +60,12 @@ export function Register() {
 
   return (
     <section id="register" className="bg-white">
-      <div className="max-w-3xl mx-auto px-6 py-24 md:py-32 text-center">
+      <div className="max-w-3xl mx-auto px-6 py-16 md:py-24 text-center">
         <FadeIn>
           <h2 className="text-[32px] md:text-[44px] leading-[1.15] font-bold text-foreground tracking-tight">
             내 손안의 사수 개발자
           </h2>
-          <p className="mt-5 text-[16px] md:text-[17px] text-muted-foreground leading-relaxed">
+          <p className="mt-5 text-[16px] md:text-[17px] font-medium text-muted-foreground leading-relaxed">
             Beta 출시 시 가장 먼저 알려드립니다
             <br />
             사전 등록하시면 무료 500 크레딧을 드려요
@@ -75,7 +75,7 @@ export function Register() {
         <FadeIn delay={150}>
           <div className="mt-10 max-w-md mx-auto">
             {isSuccess ? (
-              <div className="rounded-xl border border-border bg-gray-50 px-6 py-5">
+              <div className="rounded-xl border border-border bg-[#FAFAF9] px-6 py-5 text-center">
                 <p className="text-[15px] font-semibold text-foreground">
                   {message}
                 </p>
@@ -92,7 +92,7 @@ export function Register() {
               <>
                 <form
                   onSubmit={handleSubmit}
-                  className="flex flex-col sm:flex-row gap-3"
+                  className="flex flex-col sm:flex-row gap-3 justify-center items-stretch"
                 >
                   <InputField
                     type="text"
@@ -119,13 +119,13 @@ export function Register() {
                   </Button>
                 </form>
                 {isError && message && (
-                  <p className="mt-3 text-[13px] text-destructive text-left">
+                  <p className="mt-3 text-[13px] text-destructive text-center">
                     {message}
                   </p>
                 )}
               </>
             )}
-            <p className="mt-5 text-[13px] text-muted-foreground">
+            <p className="mt-5 text-[13px] font-medium text-muted-foreground">
               곧 출시 — 사전 등록하고 가장 먼저 만나보세요
             </p>
           </div>

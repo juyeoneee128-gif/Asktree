@@ -25,7 +25,7 @@ export function LandingHeader() {
               소개
             </Link>
             <Link
-              href="/#features"
+              href="/"
               className="text-[14px] font-medium text-muted-foreground hover:text-foreground transition-colors"
             >
               기능 소개

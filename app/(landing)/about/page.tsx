@@ -4,7 +4,7 @@ import { AboutEssay } from '@/src/components/features/landing/sections/AboutEssa
 
 export const metadata: Metadata = {
   title: '소개 — CodeSasu',
-  description: 'AI 시대의 코드 검증 체계를 만들고 있습니다.',
+  description: '코드를 모르는 빌더를 위한 사수 개발자를 만들고 있습니다',
 };
 
 export default function AboutPage() {

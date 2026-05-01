@@ -38,11 +38,11 @@ export function ContactForm() {
     const trimmedContent = content.trim();
 
     const nextErrors: typeof fieldErrors = {};
-    if (!trimmedName) nextErrors.name = '성함을 입력해주세요.';
-    if (!trimmedEmail) nextErrors.email = '이메일을 입력해주세요.';
+    if (!trimmedName) nextErrors.name = '성함을 입력해주세요';
+    if (!trimmedEmail) nextErrors.email = '이메일을 입력해주세요';
     else if (!EMAIL_REGEX.test(trimmedEmail))
-      nextErrors.email = '올바른 이메일 형식이 아닙니다.';
-    if (!trimmedContent) nextErrors.content = '문의 내용을 입력해주세요.';
+      nextErrors.email = '올바른 이메일 형식이 아닙니다';
+    if (!trimmedContent) nextErrors.content = '문의 내용을 입력해주세요';
 
     if (Object.keys(nextErrors).length > 0) {
       setFieldErrors(nextErrors);
@@ -73,12 +73,12 @@ export function ContactForm() {
       const body = await res.json().catch(() => ({}));
       setStatus('error');
       setErrorMessage(
-        body.error ?? '전송에 실패했습니다. 잠시 후 다시 시도해주세요.'
+        body.error ?? '전송에 실패했습니다 잠시 후 다시 시도해주세요'
       );
     } catch {
       setStatus('error');
       setErrorMessage(
-        '네트워크 오류가 발생했습니다. 잠시 후 다시 시도해주세요.'
+        '네트워크 오류가 발생했습니다 잠시 후 다시 시도해주세요'
       );
     }
   }
@@ -88,14 +88,14 @@ export function ContactForm() {
       <section className="bg-white">
         <div className="max-w-[560px] mx-auto px-6 pb-24 md:pb-32">
           <FadeIn>
-            <div className="rounded-2xl border border-border bg-gray-50 px-8 py-10 text-center">
+            <div className="rounded-2xl border border-border bg-[#FAFAF9] px-8 py-10 text-center">
               <p className="text-[18px] font-bold text-foreground tracking-tight">
-                문의가 접수되었습니다.
+                문의가 접수되었습니다
               </p>
               <p className="mt-3 text-[14px] text-muted-foreground leading-relaxed">
-                빠른 시일 내에 답변드리겠습니다.
+                빠른 시일 내에 답변드리겠습니다
                 <br />
-                또는 hello@codesasu.app으로 직접 문의하실 수 있습니다.
+                또는 hello@codesasu.app으로 직접 문의하실 수 있습니다
               </p>
             </div>
           </FadeIn>
@@ -151,7 +151,7 @@ export function ContactForm() {
             />
             <Textarea
               label="내용 *"
-              placeholder="문의 내용을 자유롭게 작성해주세요."
+              placeholder="문의 내용을 자유롭게 작성해주세요"
               rows={7}
               value={content}
               onChange={(e) => {
@@ -189,7 +189,7 @@ export function ContactForm() {
             >
               hello@codesasu.app
             </a>
-            으로 직접 문의하실 수 있습니다.
+            으로 직접 문의하실 수 있습니다
           </p>
         </FadeIn>
       </div>

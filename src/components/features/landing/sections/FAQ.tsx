@@ -7,23 +7,23 @@ import { FadeIn } from '@/src/components/features/landing/_components/FadeIn';
 const faqs = [
   {
     q: '코드를 모르는데 쓸 수 있나요?',
-    a: '네. CodeSasu의 모든 안내는 비개발자 언어로 제공됩니다. 수정 명령어를 복사해서 Claude Code에 붙여넣기만 하면 됩니다.',
+    a: "네 CodeSasu는 비개발자를 위해 만들어졌습니다 예를 들어, '결제 기능이 삭제되었습니다'라는 이슈가 감지되면 문제의 원인과 심각도를 알려주고, 수정 명령어를 제공합니다 사수가 제공하는 수정 명령어를 붙여넣으면 코드가 복구됩니다 코드를 직접 읽거나 수정할 필요가 전혀 없습니다",
   },
   {
     q: '내 코드가 서버에 저장되나요?',
-    a: '아닙니다. 코드 원본은 분석 후 즉시 파기됩니다. 분석 결과만 안전하게 저장됩니다.',
+    a: '아닙니다 코드 원본은 분석 후 즉시 파기됩니다 분석 결과만 안전하게 저장됩니다',
   },
   {
     q: 'Claude Code 외에 다른 도구도 지원하나요?',
-    a: '현재는 Claude Code 전용입니다. Cursor, Windsurf 등은 곧 지원 예정입니다.',
+    a: '현재는 Claude Code 전용입니다 Cursor, Windsurf 등은 곧 지원 예정입니다',
   },
   {
     q: '무료로 쓸 수 있나요?',
-    a: '사전 등록 시 500 크레딧을 무료로 드립니다. 본인 Claude API 키를 등록하면 추가 비용 없이 계속 사용할 수 있습니다.',
+    a: '사전 등록 시 500 크레딧을 무료로 드립니다 본인 Claude API 키를 등록하면 추가 비용 없이 계속 사용할 수 있습니다',
   },
   {
     q: '기존 코드 검사 도구와 뭐가 다른가요?',
-    a: '기존 도구(SonarQube, ESLint 등)는 개발자용입니다. CodeSasu는 같은 가치를 비개발자가 이해할 수 있는 언어로 제공합니다.',
+    a: '기존 도구(SonarQube, ESLint 등)는 개발자용입니다 CodeSasu는 같은 가치를 비개발자가 이해할 수 있는 언어로 제공합니다',
   },
 ];
 
@@ -31,13 +31,10 @@ export function FAQ() {
   const [openIdx, setOpenIdx] = useState<number | null>(0);
 
   return (
-    <section id="faq" className="bg-gray-50 border-y border-border">
-      <div className="max-w-3xl mx-auto px-6 py-24 md:py-32">
+    <section id="faq" className="bg-[#FAFAF9] border-y border-border">
+      <div className="max-w-3xl mx-auto px-6 py-16 md:py-24">
         <FadeIn>
-          <div className="text-center mb-14">
-            <p className="text-[13px] font-semibold text-primary tracking-wide mb-3">
-              FAQ
-            </p>
+          <div className="text-center mb-12">
             <h2 className="text-[32px] md:text-[44px] leading-[1.15] font-bold text-foreground tracking-tight">
               자주 묻는 질문
             </h2>
@@ -55,7 +52,7 @@ export function FAQ() {
                   <button
                     type="button"
                     onClick={() => setOpenIdx(isOpen ? null : idx)}
-                    className="w-full flex items-center justify-between gap-4 px-6 py-5 text-left cursor-pointer hover:bg-gray-50 transition-colors"
+                    className="w-full flex items-center justify-between gap-4 px-6 py-5 text-left cursor-pointer hover:bg-[#FAFAF9] transition-colors"
                   >
                     <span className="text-[15px] font-semibold text-foreground">
                       {item.q}
@@ -70,7 +67,7 @@ export function FAQ() {
                   </button>
                   {isOpen && (
                     <div className="px-6 pb-5 -mt-1">
-                      <p className="text-[14px] text-muted-foreground leading-relaxed">
+                      <p className="text-[14px] font-medium text-muted-foreground leading-relaxed">
                         {item.a}
                       </p>
                     </div>
