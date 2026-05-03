@@ -7,8 +7,8 @@ export function AboutHero() {
         className="absolute inset-0 -z-10 bg-gradient-to-br from-orange-50 via-white to-gray-50"
         aria-hidden
       />
-      <div className="max-w-[1200px] mx-auto px-6 pt-32 pb-24 md:pt-44 md:pb-32">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+      <div className="max-w-[1200px] mx-auto px-6 pt-20 pb-16 md:pt-44 md:pb-32">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12 items-center">
           <div>
             <h1 className="text-3xl md:text-4xl font-bold text-foreground tracking-tight leading-[1.25]">
               AI의 모든 행동을 추적하는

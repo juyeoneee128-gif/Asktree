@@ -92,7 +92,7 @@ export function Register() {
               <>
                 <form
                   onSubmit={handleSubmit}
-                  className="flex flex-col sm:flex-row gap-3 justify-center items-stretch"
+                  className="flex flex-col md:flex-row gap-3 justify-center items-stretch"
                 >
                   <InputField
                     type="text"
@@ -114,6 +114,7 @@ export function Register() {
                     type="submit"
                     size="lg"
                     disabled={status === 'submitting'}
+                    className="w-full md:w-auto"
                   >
                     {status === 'submitting' ? '등록 중…' : '사전 등록하기'}
                   </Button>

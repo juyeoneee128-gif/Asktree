@@ -18,9 +18,11 @@ export function Hero() {
             <br />
             문제가 생기면 먼저 알려줍니다
           </p>
-          <div className="mt-10 flex flex-col items-center gap-3">
-            <a href="#register">
-              <Button size="lg">사전 등록하기</Button>
+          <div className="mt-10 w-full flex flex-col items-center gap-3">
+            <a href="#register" className="w-full max-w-xs md:w-auto md:max-w-none">
+              <Button size="lg" className="w-full md:w-auto">
+                사전 등록하기
+              </Button>
             </a>
             <p className="text-sm text-muted-foreground">
               사전 등록 시 무료 500 크레딧

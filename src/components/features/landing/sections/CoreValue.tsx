@@ -1,4 +1,4 @@
-import { Download, FolderOpen, Shield, ChevronRight } from 'lucide-react';
+import { Download, FolderOpen, Shield, ChevronRight, ChevronDown } from 'lucide-react';
 import { FadeIn } from '@/src/components/features/landing/_components/FadeIn';
 
 const flow = [
@@ -20,9 +20,9 @@ export function CoreValue() {
         </FadeIn>
 
         <FadeIn delay={150}>
-          <div className="mt-10 md:mt-12 flex items-center justify-center gap-8">
+          <div className="mt-10 md:mt-12 flex flex-col md:flex-row items-center justify-center gap-5 md:gap-8">
             {flow.map(({ Icon, label }, idx) => (
-              <div key={label} className="flex items-center gap-8">
+              <div key={label} className="flex flex-col md:flex-row items-center gap-5 md:gap-8">
                 <div className="flex flex-col items-center gap-3">
                   <div className="w-16 h-16 rounded-full bg-white/10 flex items-center justify-center">
                     <Icon strokeWidth={2} className="w-7 h-7 text-white" />
@@ -32,10 +32,16 @@ export function CoreValue() {
                   </span>
                 </div>
                 {idx < flow.length - 1 && (
-                  <ChevronRight
-                    strokeWidth={2}
-                    className="w-5 h-5 text-white/40 shrink-0 -mt-9"
-                  />
+                  <>
+                    <ChevronDown
+                      strokeWidth={2}
+                      className="md:hidden w-5 h-5 text-white/40 shrink-0"
+                    />
+                    <ChevronRight
+                      strokeWidth={2}
+                      className="hidden md:block w-5 h-5 text-white/40 shrink-0 -mt-9"
+                    />
+                  </>
                 )}
               </div>
             ))}

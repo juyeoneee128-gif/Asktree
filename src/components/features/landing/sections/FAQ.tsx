@@ -52,7 +52,7 @@ export function FAQ() {
                   <button
                     type="button"
                     onClick={() => setOpenIdx(isOpen ? null : idx)}
-                    className="w-full flex items-center justify-between gap-4 px-6 py-5 text-left cursor-pointer hover:bg-[#FAFAF9] transition-colors"
+                    className="w-full min-h-[48px] flex items-center justify-between gap-4 px-6 py-5 text-left cursor-pointer hover:bg-[#FAFAF9] transition-colors"
                   >
                     <span className="text-[15px] font-semibold text-foreground">
                       {item.q}
