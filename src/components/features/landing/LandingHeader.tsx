@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { usePathname } from 'next/navigation';
 import { Menu, X } from 'lucide-react';
 import { Button } from '@/src/components/ui';
 
@@ -15,12 +16,20 @@ const NAV_LINKS = [
 
 export function LandingHeader() {
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
+
+  function handleLogoClick() {
+    setOpen(false);
+    if (pathname === '/') {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }
 
   return (
     <header className="sticky top-0 z-50 w-full bg-white/90 backdrop-blur-sm border-b border-border">
       <div className="max-w-[1200px] mx-auto px-6 h-16 flex items-center justify-between">
         <div className="flex items-center gap-10">
-          <Link href="/" className="flex items-center gap-2" onClick={() => setOpen(false)}>
+          <Link href="/" className="flex items-center gap-2" onClick={handleLogoClick}>
             <Image
               src="/logo/logo-lockup-light.svg"
               alt="CodeSasu"
