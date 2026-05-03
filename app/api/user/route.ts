@@ -57,7 +57,7 @@ export async function PATCH(request: Request) {
 
   const { data: updated, error } = await supabase
     .from('users')
-    .update(updates)
+    .update(updates as any)
     .eq('id', authUser.id)
     .select('id, name, email, avatar_url, login_method, credits, total_credits, used_this_month, created_at')
     .single();

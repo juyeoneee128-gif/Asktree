@@ -59,7 +59,7 @@ export async function saveDetectedIssues(
           basis: issue.basis,
           detected_at: new Date().toISOString(),
           confirmed_at: null,
-        })
+        } as any)
         .eq('id', match.id);
 
       if (error) {
