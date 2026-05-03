@@ -4,8 +4,6 @@ import { useState, type FormEvent } from 'react';
 import { Button, InputField } from '@/src/components/ui';
 import { FadeIn } from '@/src/components/features/landing/_components/FadeIn';
 
-const DETAIL_FORM_URL = 'https://forms.gle/placeholder';
-
 type Status = 'idle' | 'submitting' | 'success' | 'error';
 
 export function Register() {
@@ -79,14 +77,6 @@ export function Register() {
                 <p className="text-[15px] font-semibold text-foreground">
                   {message}
                 </p>
-                <a
-                  href={DETAIL_FORM_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-3 inline-block text-[13px] text-primary hover:underline"
-                >
-                  더 자세한 정보를 알려주시면 맞춤 안내를 드려요 →
-                </a>
               </div>
             ) : (
               <>
