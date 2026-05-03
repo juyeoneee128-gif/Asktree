@@ -95,7 +95,7 @@ export function ContactForm() {
               <p className="mt-3 text-[14px] text-muted-foreground leading-relaxed">
                 빠른 시일 내에 답변드리겠습니다
                 <br />
-                또는 hello@codesasu.app으로 직접 문의하실 수 있습니다
+                또는 juyeoneee128@korea.ac.kr으로 직접 문의하실 수 있습니다
               </p>
             </div>
           </FadeIn>
@@ -184,10 +184,10 @@ export function ContactForm() {
           <p className="mt-8 text-center text-[13px] text-muted-foreground leading-relaxed">
             또는{' '}
             <a
-              href="mailto:hello@codesasu.app"
+              href="mailto:juyeoneee128@korea.ac.kr"
               className="text-primary hover:underline"
             >
-              hello@codesasu.app
+              juyeoneee128@korea.ac.kr
             </a>
             으로 직접 문의하실 수 있습니다
           </p>
