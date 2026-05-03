@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import { Button } from '@/src/components/ui';
 
 export function Hero() {
@@ -22,27 +23,27 @@ export function Hero() {
               <Button size="lg">사전 등록하기</Button>
             </a>
             <p className="text-sm text-muted-foreground">
-              사전 등록 시 무료 500 크레딧 (약 25회 분석)
+              사전 등록 시 무료 500 크레딧
             </p>
           </div>
         </div>
 
         <div className="mt-16 md:mt-24 max-w-5xl mx-auto">
-          <div className="relative rounded-2xl border border-border bg-white shadow-xl overflow-hidden">
+          <div className="relative rounded-xl border border-border bg-white shadow-lg overflow-hidden">
             <div className="h-9 border-b border-border bg-gray-100 flex items-center gap-1.5 px-4">
               <span className="w-3 h-3 rounded-full bg-gray-300" />
               <span className="w-3 h-3 rounded-full bg-gray-300" />
               <span className="w-3 h-3 rounded-full bg-gray-300" />
             </div>
-            <div className="aspect-[16/9] bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
-              <div className="text-center">
-                <p className="text-[14px] font-semibold text-muted-foreground">
-                  제품 미리보기
-                </p>
-                <p className="text-[12px] text-gray-400 mt-1">
-                  실제 스크린샷으로 교체 예정
-                </p>
-              </div>
+            <div className="relative aspect-[16/10] bg-gray-50">
+              <Image
+                src="/landing/screen-issues.png"
+                alt="이슈 탭 미리보기"
+                fill
+                priority
+                sizes="(min-width: 1024px) 1024px, 100vw"
+                className="object-cover"
+              />
             </div>
           </div>
         </div>

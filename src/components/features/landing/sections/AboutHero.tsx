@@ -1,3 +1,5 @@
+import Image from 'next/image';
+
 export function AboutHero() {
   return (
     <section className="relative overflow-hidden">
@@ -20,10 +22,15 @@ export function AboutHero() {
             </p>
           </div>
 
-          <div className="aspect-[4/3] rounded-2xl bg-gradient-to-br from-[#FFF7ED] to-[#FED7AA] flex items-center justify-center">
-            <p className="text-[14px] font-medium text-[#9A3412]">
-              일러스트 이미지 예정
-            </p>
+          <div className="relative aspect-[5/4] rounded-2xl overflow-hidden">
+            <Image
+              src="/landing/codesasu_about_hero.png"
+              alt="CodeSasu 로고와 코드 리뷰 아이콘들"
+              fill
+              priority
+              sizes="(min-width: 768px) 50vw, 100vw"
+              className="object-cover"
+            />
           </div>
         </div>
       </div>
