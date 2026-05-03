@@ -1,4 +1,5 @@
 import Image from 'next/image';
+import Link from 'next/link';
 
 export function LandingFooter() {
   return (
@@ -18,34 +19,28 @@ export function LandingFooter() {
           </div>
 
           <div className="flex flex-col gap-2 text-[13px]">
-            <p className="font-semibold text-foreground mb-1">링크</p>
-            <a
-              href="#"
+            <p className="font-semibold text-foreground mb-1">Company</p>
+            <Link
+              href="/about"
               className="text-muted-foreground hover:text-foreground transition-colors"
             >
-              이용약관
-            </a>
-            <a
-              href="#"
+              소개
+            </Link>
+            <Link
+              href="/contact"
               className="text-muted-foreground hover:text-foreground transition-colors"
             >
-              개인정보처리방침
-            </a>
-            <a
-              href="#"
-              className="text-muted-foreground hover:text-foreground transition-colors"
-            >
-              피드백
-            </a>
+              문의
+            </Link>
           </div>
 
           <div className="flex flex-col gap-2 text-[13px]">
             <p className="font-semibold text-foreground mb-1">연락처</p>
             <a
-              href="mailto:hello@codesasu.app"
+              href="mailto:juyeoneee128@korea.ac.kr"
               className="text-muted-foreground hover:text-foreground transition-colors"
             >
-              hello@codesasu.app
+              juyeoneee128@korea.ac.kr
             </a>
           </div>
         </div>
