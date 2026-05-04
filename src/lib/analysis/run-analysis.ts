@@ -4,6 +4,7 @@ import { analyzeSessionDiff } from './session-comparator';
 import { saveDetectedIssues } from './save-issues';
 import type { DetectedIssue } from './parse-response';
 import type { AnalysisMode } from './prompts';
+import type { EslintIssueRaw } from '../agent/validate-payload';
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '../supabase/types';
 
@@ -55,9 +56,10 @@ export async function runAnalysis(
   let totalInput = 0;
   let totalOutput = 0;
 
-  // 1. ephemeral diff 로드 (메모리에 보관 — 분석 중 cron 삭제 대비)
+  // 1. ephemeral diff + eslint 결과 로드 (메모리에 보관 — 분석 중 cron 삭제 대비)
   const ephemeralRows = await getEphemeral(sessionId);
   const diffs: DiffItem[] = [];
+  let eslintResults: EslintIssueRaw[] = [];
 
   for (const row of ephemeralRows) {
     if (row.data_type === 'diff') {
@@ -70,6 +72,11 @@ export async function runAnalysis(
           file_path: content.file_path,
           diff_content: content.diff_content,
         });
+      }
+    } else if (row.data_type === 'eslint') {
+      // eslint 결과는 단일 row의 content에 배열로 저장됨 (saveEphemeralEslint 참고)
+      if (Array.isArray(row.content)) {
+        eslintResults = row.content as unknown as EslintIssueRaw[];
       }
     }
   }
@@ -99,7 +106,7 @@ export async function runAnalysis(
   const allIssues: DetectedIssue[] = [];
   const unprocessedFiles: string[] = [];
 
-  if (diffs.length > 0) {
+  if (diffs.length > 0 || eslintResults.length > 0) {
     try {
       const staticResult = await analyzeStatic(
         {
@@ -107,6 +114,7 @@ export async function runAnalysis(
           sessionTitle,
           filesChanged,
           diffs,
+          eslintResults,
         },
         mode
       );

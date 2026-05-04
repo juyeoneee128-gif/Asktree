@@ -7,6 +7,11 @@ import {
 import type { AnalysisMode } from './prompts';
 import { parseAnalysisResponse, applyLevelLimits, getLevelLimits } from './parse-response';
 import type { DetectedIssue, AnalysisResult } from './parse-response';
+import {
+  buildEslintContextSection,
+  convertEslintToIssues,
+} from './eslint-results';
+import type { EslintIssueRaw } from '../agent/validate-payload';
 
 /**
  * 토큰 예산 구조 — Anthropic Sonnet의 큰 컨텍스트 윈도우 환경에 맞춤.
@@ -50,6 +55,11 @@ interface StaticAnalysisInput {
   sessionTitle: string;
   filesChanged: string[];
   diffs: DiffItem[];
+  /**
+   * 에이전트가 로컬 실행한 ESLint 결과 (선택). 있으면 LLM 컨텍스트로 첨부 +
+   * 일부 룰은 직접 이슈로 변환. 없으면 기존 LLM 단독 분석과 동일.
+   */
+  eslintResults?: EslintIssueRaw[];
 }
 
 /**
@@ -60,8 +70,28 @@ export async function analyzeStatic(
   input: StaticAnalysisInput,
   mode: AnalysisMode = 'full'
 ): Promise<AnalysisResult> {
+  // ESLint 처리물(LLM 컨텍스트 + 직접 변환 이슈)을 한 번만 빌드.
+  // diff가 비어있어도 ESLint 결과만 있으면 그것만으로 결과 반환.
+  const eslintRaw = input.eslintResults ?? [];
+  const eslintContext = buildEslintContextSection(eslintRaw);
+  const eslintIssues = convertEslintToIssues(eslintRaw);
+
   if (input.diffs.length === 0) {
-    return { issues: [], tokenUsage: { input: 0, output: 0 }, warnings: ['No diffs to analyze'] };
+    if (eslintIssues.length === 0) {
+      return { issues: [], tokenUsage: { input: 0, output: 0 }, warnings: ['No diffs to analyze'] };
+    }
+    const { issues: limited, truncationWarnings } = applyLevelLimits(
+      eslintIssues,
+      getLevelLimits(mode)
+    );
+    return {
+      issues: limited,
+      tokenUsage: { input: 0, output: 0 },
+      warnings: [
+        `ESLint integration: ${eslintRaw.length} raw findings, ${eslintIssues.length} auto-converted (no diffs for LLM analysis)`,
+        ...truncationWarnings,
+      ],
+    };
   }
 
   // diff를 하나의 문자열로 합쳐서 크기 확인
@@ -71,18 +101,44 @@ export async function analyzeStatic(
   // SOFT 이하 → 단일 호출
   // SOFT < x <= HARD → 단일 호출 + 큰 diff 정보 경고
   // HARD 초과 → 청크 분할
+  let llmResult: AnalysisResult;
   if (estimatedTokenCount <= TOKEN_BUDGET.DIFF_HARD_LIMIT) {
-    const result = await callStaticAnalysis(input, combinedDiff, mode);
+    llmResult = await callStaticAnalysis(input, combinedDiff, mode, eslintContext);
     if (estimatedTokenCount > TOKEN_BUDGET.DIFF_SOFT_LIMIT) {
-      result.warnings.unshift(
+      llmResult.warnings.unshift(
         `Large diff: ~${estimatedTokenCount} tokens (soft limit ${TOKEN_BUDGET.DIFF_SOFT_LIMIT}); single-call analysis may have reduced quality`
       );
     }
-    return result;
+  } else {
+    llmResult = await callStaticAnalysisSplit(input, mode, eslintContext);
   }
 
-  // 분할 호출: 파일별로 분할
-  return await callStaticAnalysisSplit(input, mode);
+  // LLM이 ESLint 출처를 다시 보고한 경우 드롭 (basis가 ESLint:로 시작)
+  const llmFiltered = llmResult.issues.filter(
+    (i) => !i.basis.toLowerCase().startsWith('eslint:')
+  );
+
+  // ESLint 변환 이슈 + 필터된 LLM 이슈 합치기 → dedupe → 레벨 상한
+  const combined = [...eslintIssues, ...llmFiltered];
+  const deduplicated = deduplicateIssues(combined);
+  const { issues: finalIssues, truncationWarnings } = applyLevelLimits(
+    deduplicated,
+    getLevelLimits(mode)
+  );
+
+  const finalWarnings = [...llmResult.warnings, ...truncationWarnings];
+  if (eslintRaw.length > 0) {
+    finalWarnings.unshift(
+      `ESLint integration: ${eslintRaw.length} raw findings, ${eslintIssues.length} auto-converted to issues`
+    );
+  }
+
+  return {
+    issues: finalIssues,
+    tokenUsage: llmResult.tokenUsage,
+    warnings: finalWarnings,
+    ...(llmResult.unprocessed_files ? { unprocessed_files: llmResult.unprocessed_files } : {}),
+  };
 }
 
 /**
@@ -91,14 +147,18 @@ export async function analyzeStatic(
 async function callStaticAnalysis(
   input: StaticAnalysisInput,
   diffsText: string,
-  mode: AnalysisMode
+  mode: AnalysisMode,
+  eslintContext: string
 ): Promise<AnalysisResult> {
-  const userMessage = buildStaticAnalysisMessage({
+  let userMessage = buildStaticAnalysisMessage({
     projectName: input.projectName,
     sessionTitle: input.sessionTitle,
     filesChanged: input.filesChanged,
     diffs: diffsText,
   });
+  if (eslintContext) {
+    userMessage = `${userMessage}\n\n${eslintContext}`;
+  }
 
   const result = await callClaude({
     systemPrompt: buildStaticAnalysisSystem(mode),
@@ -115,7 +175,8 @@ async function callStaticAnalysis(
  */
 async function callStaticAnalysisSplit(
   input: StaticAnalysisInput,
-  mode: AnalysisMode
+  mode: AnalysisMode,
+  eslintContext: string
 ): Promise<AnalysisResult> {
   // 경로 기반 우선순위로 정렬 (보안/API 라우트 등 중요 파일을 먼저 분석)
   const sorted = [...input.diffs].sort((a, b) => {
@@ -149,7 +210,8 @@ async function callStaticAnalysisSplit(
         filesChanged: chunkFiles,
       },
       chunkDiffText,
-      mode
+      mode,
+      eslintContext
     );
 
     allIssues.push(...result.issues);
