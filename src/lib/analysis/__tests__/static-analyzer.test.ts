@@ -321,3 +321,152 @@ describe('TOKEN_BUDGET 상수', () => {
     );
   });
 });
+
+describe('analyzeStatic — ESLint 통합', () => {
+  function eslintRaw(overrides: Record<string, unknown> = {}) {
+    return {
+      file_path: 'src/foo.ts',
+      line: 1,
+      column: 1,
+      rule_id: 'no-eval',
+      severity: 2 as const,
+      message: 'eval is bad',
+      ...overrides,
+    };
+  }
+
+  it('ESLint 결과가 LLM user 메시지에 첨부된다', async () => {
+    await analyzeStatic({
+      projectName: 'p',
+      sessionTitle: 's',
+      filesChanged: ['a.ts'],
+      diffs: [makeDiff('a.ts', 1_000)],
+      eslintResults: [eslintRaw({ file_path: 'a.ts', line: 5, message: 'oh' })],
+    });
+
+    expect(mockedCallClaude).toHaveBeenCalledTimes(1);
+    const userMessage = mockedCallClaude.mock.calls[0][0].userMessage as string;
+    expect(userMessage).toContain('정적 분석 결과 (ESLint)');
+    expect(userMessage).toContain('a.ts:5');
+    expect(userMessage).toContain('no-eval');
+  });
+
+  it('ESLint 결과 없으면 user 메시지에 ESLint 섹션이 없다', async () => {
+    await analyzeStatic({
+      projectName: 'p',
+      sessionTitle: 's',
+      filesChanged: ['a.ts'],
+      diffs: [makeDiff('a.ts', 1_000)],
+    });
+    const userMessage = mockedCallClaude.mock.calls[0][0].userMessage as string;
+    expect(userMessage).not.toContain('정적 분석 결과 (ESLint)');
+  });
+
+  it('severity 2 ESLint 결과가 CodeSasu warning 이슈로 변환된다', async () => {
+    const result = await analyzeStatic({
+      projectName: 'p',
+      sessionTitle: 's',
+      filesChanged: ['a.ts'],
+      diffs: [makeDiff('a.ts', 1_000)],
+      eslintResults: [
+        eslintRaw({ rule_id: 'no-eval', severity: 2, line: 8, file_path: 'a.ts' }),
+      ],
+    });
+
+    const evalIssue = result.issues.find((i) => i.basis === 'ESLint: no-eval');
+    expect(evalIssue).toBeDefined();
+    expect(evalIssue!.level).toBe('warning');
+    expect(evalIssue!.confidence).toBe(0.9);
+    expect(evalIssue!.start_line).toBe(8);
+  });
+
+  it('LLM이 basis="ESLint:..."로 보고하면 드롭된다 (이중 보고 방지)', async () => {
+    mockedCallClaude.mockResolvedValueOnce({
+      toolInputs: [
+        {
+          issues: [
+            {
+              title: 'eval 사용',
+              level: 'warning',
+              fact: 'fact',
+              detail: 'detail',
+              fix_command: 'fix',
+              file: 'a.ts',
+              basis: 'ESLint: no-eval', // 이중 보고
+              confidence: 0.85,
+              start_line: 8,
+              end_line: 8,
+            },
+            {
+              title: 'API 키 노출',
+              level: 'critical',
+              fact: 'API key',
+              detail: 'detail',
+              fix_command: 'fix',
+              file: 'a.ts',
+              basis: 'OWASP A07:2021',
+              confidence: 0.95,
+              start_line: 12,
+              end_line: 12,
+            },
+          ],
+        },
+      ],
+      tokenUsage: { input: 100, output: 50 },
+      rawResponse: {} as Message,
+    });
+
+    const result = await analyzeStatic({
+      projectName: 'p',
+      sessionTitle: 's',
+      filesChanged: ['a.ts'],
+      diffs: [makeDiff('a.ts', 1_000)],
+      eslintResults: [eslintRaw({ rule_id: 'no-eval', file_path: 'a.ts', line: 8 })],
+    });
+
+    // basis가 'ESLint:'로 시작하는 LLM 이슈는 드롭됨
+    // → 그러나 ESLint 자체 변환에서 'ESLint: no-eval'은 들어옴 (한 번만)
+    const eslintIssues = result.issues.filter((i) => i.basis.startsWith('ESLint:'));
+    expect(eslintIssues).toHaveLength(1);
+    expect(eslintIssues[0].confidence).toBe(0.9); // ESLint 변환의 confidence
+
+    // OWASP 이슈는 정상 보존
+    const owasp = result.issues.find((i) => i.basis.includes('OWASP'));
+    expect(owasp).toBeDefined();
+  });
+
+  it('diff가 없어도 ESLint 결과만으로 결과 반환', async () => {
+    const result = await analyzeStatic({
+      projectName: 'p',
+      sessionTitle: 's',
+      filesChanged: [],
+      diffs: [],
+      eslintResults: [eslintRaw({ rule_id: 'no-eval', severity: 2 })],
+    });
+
+    expect(mockedCallClaude).not.toHaveBeenCalled();
+    expect(result.issues).toHaveLength(1);
+    expect(result.issues[0].basis).toBe('ESLint: no-eval');
+  });
+
+  it('warnings에 "ESLint integration: N raw findings, M auto-converted" 추가', async () => {
+    const result = await analyzeStatic({
+      projectName: 'p',
+      sessionTitle: 's',
+      filesChanged: ['a.ts'],
+      diffs: [makeDiff('a.ts', 1_000)],
+      eslintResults: [
+        eslintRaw({ rule_id: 'no-eval', file_path: 'a.ts' }),
+        eslintRaw({ rule_id: '@typescript-eslint/no-unused-vars', file_path: 'a.ts' }),
+      ],
+    });
+
+    const integrationWarning = result.warnings.find((w) =>
+      w.includes('ESLint integration')
+    );
+    expect(integrationWarning).toBeDefined();
+    expect(integrationWarning).toContain('2 raw findings');
+    // no-unused-vars는 변환 제외 → 1건만 변환
+    expect(integrationWarning).toContain('1 auto-converted');
+  });
+});
