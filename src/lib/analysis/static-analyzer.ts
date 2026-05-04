@@ -8,8 +8,37 @@ import type { AnalysisMode } from './prompts';
 import { parseAnalysisResponse, applyLevelLimits, getLevelLimits } from './parse-response';
 import type { DetectedIssue, AnalysisResult } from './parse-response';
 
-const MAX_DIFF_TOKENS = 12_000; // ~50KB, 단일 호출 상한
-const MAX_API_CALLS = 5;        // 분할 시 최대 호출 횟수
+/**
+ * 토큰 예산 구조 — Anthropic Sonnet의 큰 컨텍스트 윈도우 환경에 맞춤.
+ *
+ * - DIFF_SOFT_LIMIT 이하: 단일 호출 (압축 없음)
+ * - DIFF_SOFT_LIMIT ~ DIFF_HARD_LIMIT: 단일 호출 유지 + "Large diff" 정보 경고
+ * - DIFF_HARD_LIMIT 초과: 청크 분할 진입 (우선순위 정렬 → CHUNK_TARGET 단위)
+ *
+ * MAX_INPUT은 sanity ceiling — 초과 시에도 청크 분할로 처리되므로
+ * 강제 차단하지 않고 내부 분기에 의존.
+ *
+ * CONTEXT_LINES_*는 현재 git diff default(3 라인)와 일치 — 직접 조작은
+ * 별도 단계(컨텍스트 trim)로 이연. 의도/기준 문서화 목적의 상수.
+ */
+const TOKEN_BUDGET = {
+  MAX_INPUT: 32_000,
+  DIFF_SOFT_LIMIT: 10_000,
+  DIFF_HARD_LIMIT: 20_000,
+  CHUNK_TARGET: 10_000,
+  OUTPUT_BUFFER_FULL: 8_192,
+  OUTPUT_BUFFER_PROBLEMS_ONLY: 4_096,
+  CONTEXT_LINES_BEFORE: 3,
+  CONTEXT_LINES_AFTER: 3,
+} as const;
+
+const MAX_API_CALLS = 5; // 분할 시 최대 호출 횟수 — 자동 분석 비용 폭주 방지
+
+function getOutputBudget(mode: AnalysisMode): number {
+  return mode === 'problems_only'
+    ? TOKEN_BUDGET.OUTPUT_BUFFER_PROBLEMS_ONLY
+    : TOKEN_BUDGET.OUTPUT_BUFFER_FULL;
+}
 
 interface DiffItem {
   file_path: string;
@@ -39,9 +68,17 @@ export async function analyzeStatic(
   const combinedDiff = formatDiffs(input.diffs);
   const estimatedTokenCount = estimateTokens(combinedDiff);
 
-  if (estimatedTokenCount <= MAX_DIFF_TOKENS) {
-    // 단일 호출
-    return await callStaticAnalysis(input, combinedDiff, mode);
+  // SOFT 이하 → 단일 호출
+  // SOFT < x <= HARD → 단일 호출 + 큰 diff 정보 경고
+  // HARD 초과 → 청크 분할
+  if (estimatedTokenCount <= TOKEN_BUDGET.DIFF_HARD_LIMIT) {
+    const result = await callStaticAnalysis(input, combinedDiff, mode);
+    if (estimatedTokenCount > TOKEN_BUDGET.DIFF_SOFT_LIMIT) {
+      result.warnings.unshift(
+        `Large diff: ~${estimatedTokenCount} tokens (soft limit ${TOKEN_BUDGET.DIFF_SOFT_LIMIT}); single-call analysis may have reduced quality`
+      );
+    }
+    return result;
   }
 
   // 분할 호출: 파일별로 분할
@@ -67,7 +104,7 @@ async function callStaticAnalysis(
     systemPrompt: buildStaticAnalysisSystem(mode),
     userMessage,
     tools: [ANALYSIS_RESULT_TOOL],
-    maxTokens: 8192,
+    maxTokens: getOutputBudget(mode),
   });
 
   return parseAnalysisResponse(result, mode);
@@ -162,7 +199,7 @@ function chunkDiffs(diffs: DiffItem[]): DiffItem[][] {
   for (const diff of diffs) {
     const tokens = estimateTokens(diff.diff_content);
 
-    if (currentTokens + tokens > MAX_DIFF_TOKENS && current.length > 0) {
+    if (currentTokens + tokens > TOKEN_BUDGET.CHUNK_TARGET && current.length > 0) {
       chunks.push(current);
       current = [];
       currentTokens = 0;
