@@ -203,6 +203,12 @@ export interface Database {
           name: string;
           type: 'FRD' | 'PRD';
           file_url: string | null;
+          content: string | null;
+          content_hash: string | null;
+          path: string | null;
+          source: 'manual' | 'agent';
+          modified_at: string | null;
+          deleted_at: string | null;
           uploaded_at: string;
           created_at: string;
         };
@@ -212,12 +218,24 @@ export interface Database {
           name: string;
           type: 'FRD' | 'PRD';
           file_url?: string | null;
+          content?: string | null;
+          content_hash?: string | null;
+          path?: string | null;
+          source?: 'manual' | 'agent';
+          modified_at?: string | null;
+          deleted_at?: string | null;
           uploaded_at?: string;
         };
         Update: {
           name?: string;
           type?: 'FRD' | 'PRD';
           file_url?: string | null;
+          content?: string | null;
+          content_hash?: string | null;
+          path?: string | null;
+          source?: 'manual' | 'agent';
+          modified_at?: string | null;
+          deleted_at?: string | null;
         };
         Relationships: [];
       };
