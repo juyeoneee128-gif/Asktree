@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { parseAnalysisResponse, parseGuidelineResponse } from '../parse-response';
+import {
+  parseAnalysisResponse,
+  parseGuidelineResponse,
+  applyLevelLimits,
+} from '../parse-response';
+import type { DetectedIssue } from '../parse-response';
 import type { ClaudeCallResult } from '../claude-client';
 import type { Message } from '@anthropic-ai/sdk/resources/messages';
 
@@ -13,13 +18,45 @@ function mockResult(toolInputs: Record<string, unknown>[]): ClaudeCallResult {
   };
 }
 
+function fullIssue(overrides: Partial<Record<string, unknown>> = {}): Record<string, unknown> {
+  return {
+    title: '기본 이슈',
+    level: 'info',
+    fact: 'fact',
+    detail: 'detail',
+    fix_command: 'fix',
+    file: 'file.ts',
+    basis: 'basis',
+    confidence: 0.8,
+    start_line: 1,
+    end_line: 1,
+    ...overrides,
+  };
+}
+
+function makeIssue(overrides: Partial<DetectedIssue> = {}): DetectedIssue {
+  return {
+    title: 't',
+    level: 'info',
+    fact: 'f',
+    detail: 'd',
+    fix_command: 'fc',
+    file: 'a.ts',
+    basis: 'b',
+    confidence: 0.8,
+    start_line: 1,
+    end_line: 1,
+    ...overrides,
+  };
+}
+
 describe('parseAnalysisResponse', () => {
   it('정상적인 이슈 배열을 파싱한다', () => {
     const result = parseAnalysisResponse(
       mockResult([
         {
           issues: [
-            {
+            fullIssue({
               title: 'API 키 하드코딩 감지',
               level: 'critical',
               fact: 'src/config.ts에 API 키가 하드코딩되어 있습니다.',
@@ -27,8 +64,11 @@ describe('parseAnalysisResponse', () => {
               fix_command: 'src/config.ts의 API 키를 환경변수로 바꿔줘.',
               file: 'src/config.ts',
               basis: 'OWASP A02:2021',
-            },
-            {
+              confidence: 0.95,
+              start_line: 12,
+              end_line: 12,
+            }),
+            fullIssue({
               title: '에러 처리 누락',
               level: 'warning',
               fact: 'async 함수에 try-catch가 없습니다.',
@@ -36,7 +76,10 @@ describe('parseAnalysisResponse', () => {
               fix_command: 'src/api/handler.ts의 async 함수에 에러 처리를 추가해줘.',
               file: 'src/api/handler.ts',
               basis: 'Error Handling Best Practices',
-            },
+              confidence: 0.7,
+              start_line: 24,
+              end_line: 31,
+            }),
           ],
         },
       ])
@@ -45,6 +88,8 @@ describe('parseAnalysisResponse', () => {
     expect(result.issues).toHaveLength(2);
     expect(result.issues[0].title).toBe('API 키 하드코딩 감지');
     expect(result.issues[0].level).toBe('critical');
+    expect(result.issues[0].confidence).toBe(0.95);
+    expect(result.issues[0].start_line).toBe(12);
     expect(result.issues[1].level).toBe('warning');
     expect(result.warnings).toHaveLength(0);
     expect(result.tokenUsage.input).toBe(500);
@@ -69,20 +114,8 @@ describe('parseAnalysisResponse', () => {
       mockResult([
         {
           issues: [
-            {
-              title: '정상 이슈',
-              level: 'info',
-              fact: 'fact',
-              detail: 'detail',
-              fix_command: 'fix',
-              file: 'file.ts',
-              basis: 'basis',
-            },
-            {
-              title: '불완전 이슈',
-              level: 'critical',
-              // fact 누락
-            },
+            fullIssue({ title: '정상 이슈' }),
+            { title: '불완전 이슈', level: 'critical' }, // fact 등 누락
           ],
         },
       ])
@@ -98,17 +131,7 @@ describe('parseAnalysisResponse', () => {
     const result = parseAnalysisResponse(
       mockResult([
         {
-          issues: [
-            {
-              title: '이슈',
-              level: 'danger', // 유효하지 않음
-              fact: 'f',
-              detail: 'd',
-              fix_command: 'fix',
-              file: 'f.ts',
-              basis: 'b',
-            },
-          ],
+          issues: [fullIssue({ level: 'danger' })],
         },
       ])
     );
@@ -117,13 +140,123 @@ describe('parseAnalysisResponse', () => {
     expect(result.warnings[0]).toContain('invalid level');
   });
 
-  it('issues가 배열이 아니면 경고를 남긴다', () => {
+  it('confidence 범위 외 값은 거부한다', () => {
     const result = parseAnalysisResponse(
-      mockResult([{ issues: 'not an array' }])
+      mockResult([
+        { issues: [fullIssue({ confidence: 1.5 })] },
+      ])
     );
 
     expect(result.issues).toHaveLength(0);
+    expect(result.warnings[0]).toContain('confidence');
+  });
+
+  it('confidence가 숫자가 아니면 거부한다', () => {
+    const result = parseAnalysisResponse(
+      mockResult([
+        { issues: [fullIssue({ confidence: 'high' })] },
+      ])
+    );
+
+    expect(result.issues).toHaveLength(0);
+    expect(result.warnings[0]).toContain('confidence');
+  });
+
+  it('start_line이 1 미만이면 거부한다', () => {
+    const result = parseAnalysisResponse(
+      mockResult([
+        { issues: [fullIssue({ start_line: 0 })] },
+      ])
+    );
+
+    expect(result.issues).toHaveLength(0);
+    expect(result.warnings[0]).toContain('start_line');
+  });
+
+  it('end_line < start_line이면 거부한다', () => {
+    const result = parseAnalysisResponse(
+      mockResult([
+        { issues: [fullIssue({ start_line: 20, end_line: 10 })] },
+      ])
+    );
+
+    expect(result.issues).toHaveLength(0);
+    expect(result.warnings[0]).toContain('end_line');
+  });
+
+  it('start_line이 정수가 아니면 거부한다', () => {
+    const result = parseAnalysisResponse(
+      mockResult([
+        { issues: [fullIssue({ start_line: 1.5 })] },
+      ])
+    );
+
+    expect(result.issues).toHaveLength(0);
+    expect(result.warnings[0]).toContain('start_line');
+  });
+
+  it('issues가 배열이 아니면 경고를 남긴다', () => {
+    const result = parseAnalysisResponse(mockResult([{ issues: 'not an array' }]));
+
+    expect(result.issues).toHaveLength(0);
     expect(result.warnings).toContain('issues field is not an array');
+  });
+
+  it('critical 6건 입력 시 5건만 반환되고 truncate 경고를 남긴다', () => {
+    const issues = Array.from({ length: 6 }, (_, i) =>
+      fullIssue({
+        title: `crit-${i}`,
+        level: 'critical',
+        confidence: 0.5 + i * 0.05, // i=5가 가장 높음
+      })
+    );
+
+    const result = parseAnalysisResponse(mockResult([{ issues }]));
+
+    expect(result.issues).toHaveLength(5);
+    expect(result.warnings.some((w) => w.includes('Truncated 1 critical'))).toBe(true);
+    // confidence 가장 낮은 i=0이 잘려야 함
+    const titles = result.issues.map((i) => i.title);
+    expect(titles).not.toContain('crit-0');
+    expect(titles).toContain('crit-5');
+  });
+});
+
+describe('applyLevelLimits', () => {
+  it('상한 이하면 그대로 반환한다', () => {
+    const issues = [
+      makeIssue({ level: 'critical' }),
+      makeIssue({ level: 'warning' }),
+      makeIssue({ level: 'info' }),
+    ];
+    const { issues: limited, truncationWarnings } = applyLevelLimits(issues);
+    expect(limited).toHaveLength(3);
+    expect(truncationWarnings).toHaveLength(0);
+  });
+
+  it('warning 11건이면 10건만 남기고 confidence 낮은 1건이 잘린다', () => {
+    const issues = Array.from({ length: 11 }, (_, i) =>
+      makeIssue({
+        title: `w-${i}`,
+        level: 'warning',
+        confidence: i / 11, // i=0이 0, i=10이 가장 높음
+      })
+    );
+    const { issues: limited, truncationWarnings } = applyLevelLimits(issues);
+    expect(limited).toHaveLength(10);
+    expect(truncationWarnings[0]).toContain('Truncated 1 warning');
+    expect(limited.find((i) => i.title === 'w-0')).toBeUndefined();
+    expect(limited.find((i) => i.title === 'w-10')).toBeDefined();
+  });
+
+  it('레벨별 상한이 독립적으로 적용된다', () => {
+    const issues = [
+      ...Array.from({ length: 7 }, (_, i) => makeIssue({ level: 'critical', title: `c-${i}`, confidence: 0.5 })),
+      ...Array.from({ length: 3 }, (_, i) => makeIssue({ level: 'info', title: `i-${i}`, confidence: 0.5 })),
+    ];
+    const { issues: limited } = applyLevelLimits(issues);
+    expect(limited.filter((i) => i.level === 'critical')).toHaveLength(5);
+    expect(limited.filter((i) => i.level === 'info')).toHaveLength(3);
   });
 });
 

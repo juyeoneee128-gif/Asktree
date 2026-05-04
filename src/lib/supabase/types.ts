@@ -123,6 +123,9 @@ export interface Database {
           file: string;
           basis: string;
           is_redetected: boolean;
+          confidence: number | null;
+          start_line: number | null;
+          end_line: number | null;
           detected_at: string;
           confirmed_at: string | null;
           resolved_at: string | null;
@@ -141,6 +144,9 @@ export interface Database {
           file?: string;
           basis?: string;
           is_redetected?: boolean;
+          confidence?: number | null;
+          start_line?: number | null;
+          end_line?: number | null;
           detected_at?: string;
           confirmed_at?: string | null;
           resolved_at?: string | null;
@@ -155,6 +161,9 @@ export interface Database {
           file?: string;
           basis?: string;
           is_redetected?: boolean;
+          confidence?: number | null;
+          start_line?: number | null;
+          end_line?: number | null;
           confirmed_at?: string | null;
           resolved_at?: string | null;
         };

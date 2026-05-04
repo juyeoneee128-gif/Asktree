@@ -1,10 +1,10 @@
 import { callClaude, estimateTokens } from './claude-client';
 import {
   ANALYSIS_RESULT_TOOL,
-  STATIC_ANALYSIS_SYSTEM,
+  buildStaticAnalysisSystem,
   buildStaticAnalysisMessage,
 } from './prompts';
-import { parseAnalysisResponse } from './parse-response';
+import { parseAnalysisResponse, applyLevelLimits } from './parse-response';
 import type { DetectedIssue, AnalysisResult } from './parse-response';
 
 const MAX_DIFF_TOKENS = 12_000; // ~50KB, 단일 호출 상한
@@ -61,7 +61,7 @@ async function callStaticAnalysis(
   });
 
   const result = await callClaude({
-    systemPrompt: STATIC_ANALYSIS_SYSTEM,
+    systemPrompt: buildStaticAnalysisSystem(),
     userMessage,
     tools: [ANALYSIS_RESULT_TOOL],
     maxTokens: 8192,
@@ -116,11 +116,16 @@ async function callStaticAnalysisSplit(
     callCount++;
   }
 
-  // 중복 제거: 같은 file + 같은 title
+  // 중복 제거: 같은 file + 같은 title (confidence 높은 쪽 유지)
   const deduplicated = deduplicateIssues(allIssues);
 
+  // 분할 호출 결과 합산 후 다시 한 번 레벨별 상한 적용
+  // (각 청크별로 이미 상한이 걸려있어도 합치면 다시 초과할 수 있음)
+  const { issues: limited, truncationWarnings } = applyLevelLimits(deduplicated);
+  allWarnings.push(...truncationWarnings);
+
   return {
-    issues: deduplicated,
+    issues: limited,
     tokenUsage: { input: totalInput, output: totalOutput },
     warnings: allWarnings,
   };
@@ -167,16 +172,16 @@ function chunkDiffs(diffs: DiffItem[]): DiffItem[][] {
 }
 
 function deduplicateIssues(issues: DetectedIssue[]): DetectedIssue[] {
-  const seen = new Set<string>();
-  const result: DetectedIssue[] = [];
+  // 같은 (file, title) 키에서 confidence가 더 높은 이슈를 유지
+  const byKey = new Map<string, DetectedIssue>();
 
   for (const issue of issues) {
     const key = `${issue.file}::${issue.title}`;
-    if (!seen.has(key)) {
-      seen.add(key);
-      result.push(issue);
+    const existing = byKey.get(key);
+    if (!existing || issue.confidence > existing.confidence) {
+      byKey.set(key, issue);
     }
   }
 
-  return result;
+  return Array.from(byKey.values());
 }

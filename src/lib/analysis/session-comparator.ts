@@ -3,7 +3,7 @@ import type { Database } from '../supabase/types';
 import { callClaude } from './claude-client';
 import {
   ANALYSIS_RESULT_TOOL,
-  SESSION_COMPARISON_SYSTEM,
+  buildSessionComparisonSystem,
   buildSessionComparisonMessage,
 } from './prompts';
 import { parseAnalysisResponse } from './parse-response';
@@ -93,7 +93,7 @@ export async function analyzeSessionDiff(
   });
 
   const result = await callClaude({
-    systemPrompt: SESSION_COMPARISON_SYSTEM,
+    systemPrompt: buildSessionComparisonSystem(),
     userMessage,
     tools: [ANALYSIS_RESULT_TOOL],
   });

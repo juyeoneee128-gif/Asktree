@@ -10,6 +10,9 @@ export interface DetectedIssue {
   fix_command: string;
   file: string;
   basis: string;
+  confidence: number;
+  start_line: number;
+  end_line: number;
 }
 
 export interface AnalysisResult {
@@ -28,10 +31,16 @@ export interface GeneratedGuideline {
 // ─── 분석 응답 파싱 ───
 
 const VALID_LEVELS = new Set(['critical', 'warning', 'info']);
-const REQUIRED_ISSUE_FIELDS = ['title', 'level', 'fact', 'detail', 'fix_command', 'file', 'basis'] as const;
+const REQUIRED_TEXT_FIELDS = ['title', 'level', 'fact', 'detail', 'fix_command', 'file', 'basis'] as const;
+
+export const LEVEL_LIMITS: Record<DetectedIssue['level'], number> = {
+  critical: 5,
+  warning: 10,
+  info: 5,
+};
 
 /**
- * Claude API 응답에서 DetectedIssue 배열을 추출합니다.
+ * Claude API 응답에서 DetectedIssue 배열을 추출하고, 레벨별 상한을 적용합니다.
  */
 export function parseAnalysisResponse(result: ClaudeCallResult): AnalysisResult {
   const warnings: string[] = [];
@@ -62,7 +71,10 @@ export function parseAnalysisResponse(result: ClaudeCallResult): AnalysisResult 
     }
   }
 
-  return { issues, tokenUsage: result.tokenUsage, warnings };
+  const { issues: limited, truncationWarnings } = applyLevelLimits(issues);
+  warnings.push(...truncationWarnings);
+
+  return { issues: limited, tokenUsage: result.tokenUsage, warnings };
 }
 
 /**
@@ -72,8 +84,8 @@ function validateIssue(
   raw: Record<string, unknown>,
   index: number
 ): { valid: true; issue: DetectedIssue } | { valid: false; error: string } {
-  // 필수 필드 존재 확인
-  for (const field of REQUIRED_ISSUE_FIELDS) {
+  // 텍스트 필드 검증
+  for (const field of REQUIRED_TEXT_FIELDS) {
     if (!raw[field] || typeof raw[field] !== 'string') {
       return {
         valid: false,
@@ -90,6 +102,37 @@ function validateIssue(
     };
   }
 
+  // confidence 검증 (0~1 사이 숫자)
+  const confidence = raw.confidence;
+  if (typeof confidence !== 'number' || !Number.isFinite(confidence) || confidence < 0 || confidence > 1) {
+    return {
+      valid: false,
+      error: `Issue[${index}]: confidence must be a number between 0 and 1, got "${confidence}"`,
+    };
+  }
+
+  // start_line / end_line 검증 (양의 정수, end >= start)
+  const startLine = raw.start_line;
+  const endLine = raw.end_line;
+  if (!Number.isInteger(startLine) || (startLine as number) < 1) {
+    return {
+      valid: false,
+      error: `Issue[${index}]: start_line must be an integer >= 1, got "${startLine}"`,
+    };
+  }
+  if (!Number.isInteger(endLine) || (endLine as number) < 1) {
+    return {
+      valid: false,
+      error: `Issue[${index}]: end_line must be an integer >= 1, got "${endLine}"`,
+    };
+  }
+  if ((endLine as number) < (startLine as number)) {
+    return {
+      valid: false,
+      error: `Issue[${index}]: end_line (${endLine}) must be >= start_line (${startLine})`,
+    };
+  }
+
   return {
     valid: true,
     issue: {
@@ -100,8 +143,52 @@ function validateIssue(
       fix_command: raw.fix_command as string,
       file: raw.file as string,
       basis: raw.basis as string,
+      confidence: confidence,
+      start_line: startLine as number,
+      end_line: endLine as number,
     },
   };
+}
+
+/**
+ * 레벨별 상한을 적용합니다.
+ * 같은 레벨 내에서는 confidence 내림차순으로 상위 N개를 유지합니다.
+ */
+export function applyLevelLimits(
+  issues: DetectedIssue[]
+): { issues: DetectedIssue[]; truncationWarnings: string[] } {
+  const buckets: Record<DetectedIssue['level'], DetectedIssue[]> = {
+    critical: [],
+    warning: [],
+    info: [],
+  };
+
+  for (const issue of issues) {
+    buckets[issue.level].push(issue);
+  }
+
+  const truncationWarnings: string[] = [];
+  const result: DetectedIssue[] = [];
+
+  for (const level of ['critical', 'warning', 'info'] as const) {
+    const limit = LEVEL_LIMITS[level];
+    const bucket = buckets[level];
+
+    if (bucket.length <= limit) {
+      result.push(...bucket);
+      continue;
+    }
+
+    // confidence 내림차순 정렬 후 상위 limit개 유지
+    const sorted = [...bucket].sort((a, b) => b.confidence - a.confidence);
+    const dropped = bucket.length - limit;
+    result.push(...sorted.slice(0, limit));
+    truncationWarnings.push(
+      `Truncated ${dropped} ${level} issue(s) over limit (${limit})`
+    );
+  }
+
+  return { issues: result, truncationWarnings };
 }
 
 /**

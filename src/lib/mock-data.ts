@@ -61,6 +61,9 @@ export interface Issue {
   basis: string;
   detectedAt: string;
   isRedetected?: boolean;
+  confidence?: number;
+  startLine?: number;
+  endLine?: number;
 }
 
 export const mockIssues: Issue[] = [

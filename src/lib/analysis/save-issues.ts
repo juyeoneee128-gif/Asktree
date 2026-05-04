@@ -57,6 +57,9 @@ export async function saveDetectedIssues(
           detail: issue.detail,
           fix_command: issue.fix_command,
           basis: issue.basis,
+          confidence: issue.confidence,
+          start_line: issue.start_line,
+          end_line: issue.end_line,
           detected_at: new Date().toISOString(),
           confirmed_at: null,
         } as any)
@@ -81,6 +84,9 @@ export async function saveDetectedIssues(
         file: issue.file,
         basis: issue.basis,
         is_redetected: false,
+        confidence: issue.confidence,
+        start_line: issue.start_line,
+        end_line: issue.end_line,
         detected_at: new Date().toISOString(),
       });
 

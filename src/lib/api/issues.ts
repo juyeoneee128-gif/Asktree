@@ -13,6 +13,9 @@ interface IssueRow {
   file: string | null;
   basis: string;
   is_redetected: boolean;
+  confidence: number | null;
+  start_line: number | null;
+  end_line: number | null;
   detected_at: string;
   confirmed_at: string | null;
   resolved_at: string | null;
@@ -56,6 +59,9 @@ function toIssue(row: IssueRow): Issue {
     basis: row.basis,
     detectedAt: formatRelativeTime(row.detected_at),
     isRedetected: row.is_redetected || undefined,
+    confidence: row.confidence ?? undefined,
+    startLine: row.start_line ?? undefined,
+    endLine: row.end_line ?? undefined,
   };
 }
 
