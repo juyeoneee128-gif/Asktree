@@ -82,6 +82,10 @@ export interface Database {
           files_changed: number;
           changed_files: Json;
           prompts: Json;
+          parsed_summary: Json | null;
+          duration_seconds: number | null;
+          prompt_count: number | null;
+          total_tokens: number | null;
           external_session_id: string | null;
           created_at: string;
           updated_at: string;
@@ -96,6 +100,10 @@ export interface Database {
           files_changed?: number;
           changed_files?: Json;
           prompts?: Json;
+          parsed_summary?: Json | null;
+          duration_seconds?: number | null;
+          prompt_count?: number | null;
+          total_tokens?: number | null;
           external_session_id?: string | null;
         };
         Update: {
@@ -105,6 +113,10 @@ export interface Database {
           files_changed?: number;
           changed_files?: Json;
           prompts?: Json;
+          parsed_summary?: Json | null;
+          duration_seconds?: number | null;
+          prompt_count?: number | null;
+          total_tokens?: number | null;
           external_session_id?: string | null;
         };
         Relationships: [];
