@@ -93,6 +93,92 @@ describe('validatePayload', () => {
       expect(result.errors.length).toBeGreaterThanOrEqual(3);
     }
   });
+
+  describe('docs_files 검증', () => {
+    function withDocs(docs: unknown) {
+      return {
+        project_id: 'test',
+        session_data: { jsonl_log: 'a', docs_files: docs },
+        metadata: { agent_version: '1.0', pushed_at: '2026-01-01' },
+      };
+    }
+
+    it('docs_files가 누락이어도 유효 (선택 필드)', () => {
+      const result = validatePayload({
+        project_id: 'test',
+        session_data: { jsonl_log: 'a' },
+        metadata: { agent_version: '1.0', pushed_at: '2026-01-01' },
+      });
+      expect(result.valid).toBe(true);
+    });
+
+    it('정상 docs_files 통과', () => {
+      const result = validatePayload(
+        withDocs([
+          {
+            path: 'docs/prd_v1.md',
+            content: '# PRD',
+            modified_at: '2026-01-01T00:00:00.000Z',
+          },
+        ])
+      );
+      expect(result.valid).toBe(true);
+    });
+
+    it('배열이 아니면 거부', () => {
+      const result = validatePayload(withDocs('not an array'));
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.includes('must be an array'))).toBe(true);
+      }
+    });
+
+    it('path 누락 시 거부', () => {
+      const result = validatePayload(
+        withDocs([{ content: 'x', modified_at: '2026-01-01T00:00:00.000Z' }])
+      );
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.includes('path'))).toBe(true);
+      }
+    });
+
+    it('content 누락 시 거부', () => {
+      const result = validatePayload(
+        withDocs([{ path: 'a.md', modified_at: '2026-01-01T00:00:00.000Z' }])
+      );
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.includes('content'))).toBe(true);
+      }
+    });
+
+    it('content가 60_000자 초과 시 거부', () => {
+      const result = validatePayload(
+        withDocs([
+          {
+            path: 'a.md',
+            content: 'x'.repeat(60_001),
+            modified_at: '2026-01-01T00:00:00.000Z',
+          },
+        ])
+      );
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.includes('60_000'))).toBe(true);
+      }
+    });
+
+    it('modified_at이 invalid ISO이면 거부', () => {
+      const result = validatePayload(
+        withDocs([{ path: 'a.md', content: 'x', modified_at: 'not-a-date' }])
+      );
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.includes('valid ISO'))).toBe(true);
+      }
+    });
+  });
 });
 
 describe('validatePayloadSize', () => {
