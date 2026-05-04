@@ -1,4 +1,4 @@
-const AGENT_VERSION = '0.2.0';
+const AGENT_VERSION = '0.3.0';
 const MAX_RETRIES = 3;
 const RETRY_BASE_MS = 1000;
 
@@ -9,6 +9,7 @@ export async function pushSession({ apiUrl, token, projectId, sessionResult }) {
       jsonl_log: sessionResult.jsonlLog,
       diffs: sessionResult.diffs,
       eslint_results: sessionResult.eslintResults ?? [],
+      docs_files: sessionResult.docsFiles ?? [],
     },
     metadata: {
       agent_version: AGENT_VERSION,

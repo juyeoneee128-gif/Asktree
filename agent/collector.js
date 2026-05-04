@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { runEslint } from './eslint-collector.js';
+import { collectDocs } from './docs-collector.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -42,6 +43,17 @@ export async function collectSession(jsonlPath) {
     eslintWarnings.push(`eslint run threw: ${err.message}`);
   }
 
+  // docs/*.md 자동 수집 (실패해도 push는 계속 진행)
+  let docsFiles = [];
+  let docsWarnings = [];
+  try {
+    const docsRun = await collectDocs(cwd);
+    docsFiles = docsRun.docs;
+    docsWarnings = docsRun.warnings;
+  } catch (err) {
+    docsWarnings.push(`docs collect threw: ${err.message}`);
+  }
+
   return {
     ok: true,
     sessionId,
@@ -49,7 +61,8 @@ export async function collectSession(jsonlPath) {
     jsonlLog: raw,
     diffs,
     eslintResults,
-    warnings: [...warnings, ...gitWarnings, ...eslintWarnings],
+    docsFiles,
+    warnings: [...warnings, ...gitWarnings, ...eslintWarnings, ...docsWarnings],
   };
 }
 

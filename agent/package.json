@@ -1,6 +1,6 @@
 {
   "name": "codesasu-agent",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "CodeSasu 로컬 에이전트 — Claude Code 세션 감시 및 /api/agent/push 전송",
   "type": "module",
