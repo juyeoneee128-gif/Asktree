@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '../supabase/types';
-import type { DiffEntry, FileTreeEntry } from './validate-payload';
+import type { DiffEntry, FileTreeEntry, EslintIssueRaw } from './validate-payload';
 
 type EphemeralDataType = Database['public']['Tables']['ephemeral_data']['Row']['data_type'];
 
@@ -32,6 +32,29 @@ export async function saveEphemeralDiffs(
 
   if (error) {
     throw new Error(`Failed to save ephemeral diffs: ${error.message}`);
+  }
+}
+
+/**
+ * ESLint 결과를 ephemeral_data에 저장합니다.
+ * 결과 전체를 단일 row의 content(JSONB)에 array로 저장 — 분석 시 한번에 로드.
+ */
+export async function saveEphemeralEslint(
+  sessionId: string,
+  results: EslintIssueRaw[]
+): Promise<void> {
+  if (results.length === 0) return;
+
+  const supabase = createAdminClient();
+
+  const { error } = await supabase.from('ephemeral_data').insert({
+    session_id: sessionId,
+    data_type: 'eslint' as EphemeralDataType,
+    content: results as unknown as Database['public']['Tables']['ephemeral_data']['Insert']['content'],
+  });
+
+  if (error) {
+    throw new Error(`Failed to save ephemeral eslint results: ${error.message}`);
   }
 }
 

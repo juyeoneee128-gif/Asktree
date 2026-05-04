@@ -5,7 +5,12 @@ import { extractBearerToken, verifyAgentToken } from '@/src/lib/agent/auth-agent
 import { validatePayload, validatePayloadSize, MAX_PAYLOAD_SIZE } from '@/src/lib/agent/validate-payload';
 import { parseSession } from '@/src/lib/agent/parse-session';
 import { saveSession, updateAgentStatus, mergeChangedFiles } from '@/src/lib/agent/save-session';
-import { saveEphemeralDiffs, saveEphemeralFileTree, cleanupExpiredEphemeral } from '@/src/lib/agent/ephemeral';
+import {
+  saveEphemeralDiffs,
+  saveEphemeralEslint,
+  saveEphemeralFileTree,
+  cleanupExpiredEphemeral,
+} from '@/src/lib/agent/ephemeral';
 import { runAnalysis } from '@/src/lib/analysis/run-analysis';
 import { assessFeatures } from '@/src/lib/specs/assess-features';
 
@@ -99,13 +104,16 @@ export async function POST(request: Request) {
 
   const { saved } = saveResult;
 
-  // 8. Ephemeral 데이터 저장 (diffs, file_tree)
+  // 8. Ephemeral 데이터 저장 (diffs, file_tree, eslint)
   try {
     if (payload.session_data.diffs && payload.session_data.diffs.length > 0) {
       await saveEphemeralDiffs(saved.id, payload.session_data.diffs);
     }
     if (payload.session_data.file_tree && payload.session_data.file_tree.length > 0) {
       await saveEphemeralFileTree(saved.id, payload.session_data.file_tree);
+    }
+    if (payload.session_data.eslint_results && payload.session_data.eslint_results.length > 0) {
+      await saveEphemeralEslint(saved.id, payload.session_data.eslint_results);
     }
   } catch (err) {
     console.error('[push] Ephemeral save failed:', (err as Error).message);

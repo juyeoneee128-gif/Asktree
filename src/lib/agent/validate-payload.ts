@@ -10,12 +10,25 @@ export interface FileTreeEntry {
   size?: number;
 }
 
+/**
+ * 에이전트가 로컬 실행한 ESLint 결과 단건. agent/eslint-collector.js의 출력 형식과 일치.
+ */
+export interface EslintIssueRaw {
+  file_path: string;
+  line: number;
+  column: number;
+  rule_id: string | null;
+  severity: 1 | 2; // 1=warn, 2=error
+  message: string;
+}
+
 export interface AgentPushPayload {
   project_id: string;
   session_data: {
     jsonl_log: string;
     file_tree?: FileTreeEntry[];
     diffs?: DiffEntry[];
+    eslint_results?: EslintIssueRaw[];
   };
   metadata: {
     agent_version: string;
@@ -81,6 +94,35 @@ export function validatePayload(
     if (sd.file_tree !== undefined) {
       if (!Array.isArray(sd.file_tree)) {
         errors.push('session_data.file_tree must be an array');
+      }
+    }
+
+    if (sd.eslint_results !== undefined) {
+      if (!Array.isArray(sd.eslint_results)) {
+        errors.push('session_data.eslint_results must be an array');
+      } else {
+        for (let i = 0; i < sd.eslint_results.length; i++) {
+          const r = sd.eslint_results[i] as Record<string, unknown>;
+          if (!r.file_path || typeof r.file_path !== 'string') {
+            errors.push(`session_data.eslint_results[${i}].file_path is required`);
+          }
+          if (typeof r.line !== 'number') {
+            errors.push(`session_data.eslint_results[${i}].line must be a number`);
+          }
+          if (typeof r.column !== 'number') {
+            errors.push(`session_data.eslint_results[${i}].column must be a number`);
+          }
+          // rule_id can be null (e.g. parser errors)
+          if (r.rule_id !== null && typeof r.rule_id !== 'string') {
+            errors.push(`session_data.eslint_results[${i}].rule_id must be string or null`);
+          }
+          if (r.severity !== 1 && r.severity !== 2) {
+            errors.push(`session_data.eslint_results[${i}].severity must be 1 or 2`);
+          }
+          if (!r.message || typeof r.message !== 'string') {
+            errors.push(`session_data.eslint_results[${i}].message is required`);
+          }
+        }
       }
     }
   }

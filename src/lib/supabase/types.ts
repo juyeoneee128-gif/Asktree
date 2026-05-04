@@ -262,7 +262,7 @@ export interface Database {
         Row: {
           id: string;
           session_id: string;
-          data_type: 'file_tree' | 'diff';
+          data_type: 'file_tree' | 'diff' | 'eslint';
           content: Json;
           expires_at: string;
           created_at: string;
@@ -270,12 +270,12 @@ export interface Database {
         Insert: {
           id?: string;
           session_id: string;
-          data_type: 'file_tree' | 'diff';
+          data_type: 'file_tree' | 'diff' | 'eslint';
           content: Json;
           expires_at?: string;
         };
         Update: {
-          data_type?: 'file_tree' | 'diff';
+          data_type?: 'file_tree' | 'diff' | 'eslint';
           content?: Json;
           expires_at?: string;
         };
