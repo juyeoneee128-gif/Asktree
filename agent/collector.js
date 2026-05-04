@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { runEslint } from './eslint-collector.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -27,13 +28,28 @@ export async function collectSession(jsonlPath) {
 
   diffs = enforcePayloadBudget(diffs, raw.length);
 
+  // 변경 파일에 대해 ESLint 분석 (실패해도 push는 계속 진행)
+  let eslintResults = [];
+  let eslintWarnings = [];
+  try {
+    const eslintRun = await runEslint(
+      cwd,
+      diffs.map((d) => ({ file_path: d.file_path, change_type: d.change_type }))
+    );
+    eslintResults = eslintRun.results;
+    eslintWarnings = eslintRun.warnings;
+  } catch (err) {
+    eslintWarnings.push(`eslint run threw: ${err.message}`);
+  }
+
   return {
     ok: true,
     sessionId,
     cwd,
     jsonlLog: raw,
     diffs,
-    warnings: [...warnings, ...gitWarnings],
+    eslintResults,
+    warnings: [...warnings, ...gitWarnings, ...eslintWarnings],
   };
 }
 
