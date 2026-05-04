@@ -31,9 +31,9 @@ describe('parseSession', () => {
     expect(result.entrypoint).toBe('claude-vscode');
     expect(result.model).toBe('claude-sonnet-4-20250514');
 
-    // 요약
-    expect(result.summary).toContain('프롬프트 1개');
-    expect(result.summary).toContain('파일 변경 2개');
+    // 요약 (신 형식: "N개 프롬프트, M개 파일 수정, 12분")
+    expect(result.summary).toContain('1개 프롬프트');
+    expect(result.summary).toContain('2개 파일 수정');
 
     // 경고 없음
     expect(result.warnings).toHaveLength(0);
@@ -42,7 +42,7 @@ describe('parseSession', () => {
     expect(result.log_hash).toHaveLength(64);
   });
 
-  it('ai-title이 없으면 첫 프롬프트 50자로 제목을 생성한다', () => {
+  it('ai-title이 없으면 첫 프롬프트 80자로 제목을 생성한다', () => {
     const result = parseSession(MOCK_JSONL_NO_TITLE);
 
     expect(result.title).toBe('로그인 에러 처리 추가해줘');
@@ -58,9 +58,16 @@ describe('parseSession', () => {
     expect(result.title).toBe('로그인 에러 처리 추가');
   });
 
-  it('빈 JSONL은 에러를 던진다', () => {
-    expect(() => parseSession('')).toThrow('Empty log data');
-    expect(() => parseSession('\n\n')).toThrow('Empty log data');
+  it('빈 JSONL은 throw하지 않고 기본값을 반환한다', () => {
+    const empty = parseSession('');
+    expect(empty.title).toBe('Untitled Session');
+    expect(empty.prompts).toEqual([]);
+    expect(empty.files_changed).toEqual([]);
+    expect(empty.duration_seconds).toBe(0);
+    expect(empty.warnings).toContain('Empty log data');
+
+    const whitespace = parseSession('\n\n');
+    expect(whitespace.warnings).toContain('Empty log data');
   });
 
   it('tool_result만 있는 user 메시지는 프롬프트에서 제외된다', () => {
