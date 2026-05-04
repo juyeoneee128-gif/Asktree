@@ -1,10 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { parseSession } from '../parse-session';
+import { parseSession, formatDuration } from '../parse-session';
 import {
   MOCK_JSONL,
   MOCK_JSONL_NO_TITLE,
   MOCK_JSONL_WITH_CORRUPT,
   MOCK_JSONL_TOOL_ONLY,
+  MOCK_JSONL_WITH_ERRORS,
 } from './mock-jsonl';
 
 describe('parseSession', () => {
@@ -102,5 +103,121 @@ describe('parseSession', () => {
 
     expect(result.files_changed).toEqual([]);
     expect(result.changed_files).toBe(0);
+  });
+});
+
+describe('parseSession — 신규 필드', () => {
+  it('duration_seconds: 첫 ~ 마지막 timestamp 차이 (초)', () => {
+    // MOCK_JSONL: 10:00:00 ~ 10:00:09 = 9초
+    const result = parseSession(MOCK_JSONL);
+    expect(result.duration_seconds).toBe(9);
+  });
+
+  it('total_tokens: 모든 assistant.usage 합산', () => {
+    // MOCK_JSONL: 100+50+150+30+200+80+250+40+300+60 = 1260
+    const result = parseSession(MOCK_JSONL);
+    expect(result.total_tokens).toBe(1260);
+  });
+
+  it('prompt_count: prompts.length와 일치', () => {
+    const result = parseSession(MOCK_JSONL);
+    expect(result.prompt_count).toBe(result.prompts.length);
+    expect(result.prompt_count).toBe(1);
+  });
+
+  it('files_read: Read 도구의 file_path 추출 + cwd 상대경로', () => {
+    const result = parseSession(MOCK_JSONL);
+    expect(result.files_read).toEqual(['src/auth/login.ts']);
+    // 절대 경로 흔적 없음
+    for (const f of result.files_read) {
+      expect(f).not.toContain('/Users/');
+    }
+  });
+
+  it('tool_usage: 도구별 카운트', () => {
+    const result = parseSession(MOCK_JSONL);
+    // MOCK_JSONL: Read 1, Edit 1, Write 1 (thinking은 tool_use 아님)
+    expect(result.tool_usage).toEqual({ Read: 1, Edit: 1, Write: 1 });
+  });
+
+  it('prompts_meta: index/content/timestamp 포함', () => {
+    const result = parseSession(MOCK_JSONL);
+    expect(result.prompts_meta).toHaveLength(1);
+    expect(result.prompts_meta[0].index).toBe(0);
+    expect(result.prompts_meta[0].content).toBe('로그인 에러 처리 추가해줘');
+    expect(result.prompts_meta[0].timestamp).toBe('2026-04-08T10:00:01Z');
+  });
+
+  it('errors: is_error=true와 error 키워드 매칭, "no errors" 부정문 제외', () => {
+    const result = parseSession(MOCK_JSONL_WITH_ERRORS);
+    // tu1: is_error=true → 잡힘
+    // tu2: "Build failed: missing module" — failed 매칭, 부정문 없음 → 잡힘
+    // tu3: "Tests passed with no errors" — "no errors" 부정문 → 제외
+    expect(result.errors).toHaveLength(2);
+    expect(result.errors[0].tool_name).toBe('Bash');
+    expect(result.errors[0].message).toContain('connection refused');
+    expect(result.errors[1].message).toContain('Build failed');
+    // tu3은 들어가지 않아야 함
+    expect(result.errors.find((e) => e.message.includes('no errors'))).toBeUndefined();
+  });
+
+  it('errors 메시지는 200자 truncate', () => {
+    const longContent = 'Error: ' + 'x'.repeat(500);
+    const jsonl = [
+      '{"type":"assistant","parentUuid":"x","uuid":"a1","timestamp":"2026-04-08T10:00:00Z","message":{"model":"m","role":"assistant","content":[{"type":"tool_use","id":"tu1","name":"Bash","input":{}}]}}',
+      `{"type":"user","parentUuid":"a1","uuid":"u1","timestamp":"2026-04-08T10:00:01Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"tu1","content":${JSON.stringify(longContent)},"is_error":true}]},"toolUseResult":{}}`,
+    ].join('\n');
+    const result = parseSession(jsonl);
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0].message.length).toBeLessThanOrEqual(203); // 200 + "..."
+    expect(result.errors[0].message.endsWith('...')).toBe(true);
+  });
+
+  it('summary: "N개 프롬프트, M개 파일 수정, 12분" 형식', () => {
+    const result = parseSession(MOCK_JSONL);
+    expect(result.summary).toContain('1개 프롬프트');
+    expect(result.summary).toContain('2개 파일 수정');
+    // duration 9초 → 60초 미만이라 "0분"으로 표시
+    expect(result.summary).toContain('0분');
+  });
+
+  it('MultiEdit 도구도 files_changed에 포함', () => {
+    const jsonl = [
+      '{"type":"user","parentUuid":null,"uuid":"u1","timestamp":"2026-04-08T10:00:00Z","message":{"role":"user","content":[{"type":"text","text":"refactor"}]},"cwd":"/Users/dev/x"}',
+      '{"type":"assistant","parentUuid":"u1","uuid":"a1","timestamp":"2026-04-08T10:00:01Z","message":{"model":"m","role":"assistant","content":[{"type":"tool_use","id":"tu1","name":"MultiEdit","input":{"file_path":"/Users/dev/x/src/foo.ts"}}]}}',
+    ].join('\n');
+    const result = parseSession(jsonl);
+    expect(result.files_changed).toEqual(['src/foo.ts']);
+  });
+
+  it('input.path도 file_path 대안으로 인식', () => {
+    const jsonl = [
+      '{"type":"user","parentUuid":null,"uuid":"u1","timestamp":"2026-04-08T10:00:00Z","message":{"role":"user","content":[{"type":"text","text":"x"}]},"cwd":"/Users/dev/x"}',
+      '{"type":"assistant","parentUuid":"u1","uuid":"a1","timestamp":"2026-04-08T10:00:01Z","message":{"model":"m","role":"assistant","content":[{"type":"tool_use","id":"tu1","name":"Write","input":{"path":"/Users/dev/x/src/legacy.ts"}}]}}',
+    ].join('\n');
+    const result = parseSession(jsonl);
+    expect(result.files_changed).toEqual(['src/legacy.ts']);
+  });
+});
+
+describe('formatDuration', () => {
+  it('60초 미만은 "0분"', () => {
+    expect(formatDuration(0)).toBe('0분');
+    expect(formatDuration(30)).toBe('0분');
+    expect(formatDuration(59)).toBe('0분');
+  });
+
+  it('60초 ~ 1시간은 "N분 [M초]"', () => {
+    expect(formatDuration(60)).toBe('1분');
+    expect(formatDuration(90)).toBe('1분 30초');
+    expect(formatDuration(754)).toBe('12분 34초');
+    expect(formatDuration(3540)).toBe('59분');
+  });
+
+  it('1시간 이상은 "N시간 [M분]"', () => {
+    expect(formatDuration(3600)).toBe('1시간');
+    expect(formatDuration(3660)).toBe('1시간 1분');
+    expect(formatDuration(4980)).toBe('1시간 23분');
+    expect(formatDuration(7200)).toBe('2시간');
   });
 });

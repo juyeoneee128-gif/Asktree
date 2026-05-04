@@ -251,8 +251,8 @@ export function parseSession(jsonlLog: string): ParsedSession {
   const durationSeconds = computeDurationSeconds(entries);
   const totalTokens = computeTotalTokens(assistantMessages);
 
-  // Step 8: 에러 추출
-  const errors = extractErrors(assistantMessages);
+  // Step 8: 에러 추출 (tool_result는 user 메시지에 들어감 — Claude Code JSONL 사양)
+  const errors = extractErrors(userMessages, assistantMessages);
 
   // Step 9: 한국어 요약 텍스트
   const summary = buildSummary(prompts.length, filesChanged.length, durationSeconds);
@@ -515,12 +515,14 @@ function computeTotalTokens(assistantMessages: JsonlAssistantMessage[]): number 
  * - is_error === true (확실한 에러)
  * - content에 error/failed/failure 키워드 매칭 + "no errors" 같은 부정문 없음
  *
- * 같은 user 메시지의 tool_result는 직전 assistant의 tool_use와 짝 — tool_name은
- * tool_use_id를 통해 조회. 짝을 못 찾으면 'unknown'.
- *
- * MAX_ERRORS(10) 도달 시 truncate.
+ * Claude Code JSONL 사양: tool_use는 assistant 메시지에, tool_result는
+ * user 메시지에 들어감. tool_use_id로 두 메시지를 짝지어 tool_name 추출.
+ * 짝을 못 찾으면 'unknown'. MAX_ERRORS(10) 도달 시 truncate.
  */
-function extractErrors(assistantMessages: JsonlAssistantMessage[]): ErrorEntry[] {
+function extractErrors(
+  userMessages: JsonlUserMessage[],
+  assistantMessages: JsonlAssistantMessage[]
+): ErrorEntry[] {
   // tool_use_id → tool_name 매핑 (assistant 측에서 도구 호출 시점)
   const toolNameById = new Map<string, string>();
   for (const msg of assistantMessages) {
@@ -533,7 +535,7 @@ function extractErrors(assistantMessages: JsonlAssistantMessage[]): ErrorEntry[]
 
   const errors: ErrorEntry[] = [];
 
-  for (const msg of assistantMessages) {
+  for (const msg of userMessages) {
     for (const content of msg.message.content) {
       if (content.type !== 'tool_result') continue;
       if (errors.length >= MAX_ERRORS) return errors;

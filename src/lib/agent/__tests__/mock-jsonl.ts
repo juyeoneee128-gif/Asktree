@@ -56,6 +56,20 @@ export const MOCK_JSONL_WITH_CORRUPT = [
   MOCK_JSONL_LINES[MOCK_JSONL_LINES.length - 2], // ai-title
 ].join('\n');
 
+// 에러 감지 테스트용 JSONL — is_error=true / 키워드 매칭 / "no errors" 부정문
+export const MOCK_JSONL_WITH_ERRORS = [
+  '{"type":"user","parentUuid":null,"isSidechain":false,"promptId":"p1","uuid":"u1","timestamp":"2026-04-08T10:00:00Z","message":{"role":"user","content":[{"type":"text","text":"build 실행해줘"}]},"cwd":"/Users/dev/x","sessionId":"err-session"}',
+
+  // assistant — Bash tool_use 3건 (각각 다른 결과)
+  '{"type":"assistant","parentUuid":"u1","uuid":"a1","timestamp":"2026-04-08T10:00:01Z","message":{"model":"m","role":"assistant","content":[{"type":"tool_use","id":"tu1","name":"Bash","input":{"command":"npm test"}},{"type":"tool_use","id":"tu2","name":"Bash","input":{"command":"npm build"}},{"type":"tool_use","id":"tu3","name":"Bash","input":{"command":"echo done"}}]}}',
+
+  // user — tool_result 3건
+  // tu1: is_error=true (확실한 에러)
+  // tu2: error 키워드 매칭
+  // tu3: "no errors" — 부정문이므로 false positive 차단
+  '{"type":"user","parentUuid":"a1","uuid":"u2","timestamp":"2026-04-08T10:00:02Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"tu1","content":"connection refused","is_error":true},{"type":"tool_result","tool_use_id":"tu2","content":"Build failed: missing module"},{"type":"tool_result","tool_use_id":"tu3","content":"Tests passed with no errors"}]},"toolUseResult":{}}',
+].join('\n');
+
 // tool_result만 있는 JSONL (프롬프트 없음)
 export const MOCK_JSONL_TOOL_ONLY = [
   '{"type":"queue-operation","operation":"enqueue","timestamp":"2026-04-08T10:00:00Z","sessionId":"test-002"}',
