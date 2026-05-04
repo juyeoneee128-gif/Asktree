@@ -205,6 +205,9 @@ function formatDiffs(diffs: DiffItem[]): string {
     .join('\n\n');
 }
 
+// Test에서 직접 검증하기 위해 export. 외부 사용처 없음.
+export { TOKEN_BUDGET, MAX_API_CALLS, getFilePriority, chunkDiffs, formatUnprocessedFilesWarning };
+
 /**
  * 파일 경로 기반 분석 우선순위. 청크 분할 시 점수가 높은 파일을 먼저 분석.
  * 토큰 예산 초과로 일부 파일이 잘릴 때, 가장 중요한 파일이 보존되도록.
