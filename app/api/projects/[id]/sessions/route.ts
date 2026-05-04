@@ -26,10 +26,12 @@ export async function GET(_request: Request, { params }: Params) {
     return NextResponse.json({ error: '프로젝트를 찾을 수 없습니다' }, { status: 404 });
   }
 
+  // 목록은 parsed_summary(jsonb)를 제외하여 응답 크기를 줄임 — 상세에서만 노출.
+  // 신규: duration_seconds / prompt_count / total_tokens (정렬/표시용 정수).
   const { data: sessions, error } = await supabase
     .from('sessions')
     .select(
-      'id, number, title, summary, files_changed, changed_files, prompts, created_at, updated_at'
+      'id, number, title, summary, files_changed, changed_files, prompts, duration_seconds, prompt_count, total_tokens, created_at, updated_at'
     )
     .eq('project_id', projectId)
     .order('number', { ascending: false });
