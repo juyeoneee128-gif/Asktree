@@ -117,26 +117,27 @@ async function callStaticAnalysisSplit(
   input: StaticAnalysisInput,
   mode: AnalysisMode
 ): Promise<AnalysisResult> {
-  // ts/tsx 파일 우선 정렬 (코드 파일 우선)
+  // 경로 기반 우선순위로 정렬 (보안/API 라우트 등 중요 파일을 먼저 분석)
   const sorted = [...input.diffs].sort((a, b) => {
     const aScore = getFilePriority(a.file_path);
     const bScore = getFilePriority(b.file_path);
     return bScore - aScore;
   });
 
-  // 청크 분할: 각 청크가 MAX_DIFF_TOKENS 이내
-  const chunks = chunkDiffs(sorted);
+  // 청크 분할 + 단일 파일이 HARD 초과한 경우 분리
+  const { chunks, oversizedFiles } = chunkDiffs(sorted);
 
   const allIssues: DetectedIssue[] = [];
   const allWarnings: string[] = [];
   let totalInput = 0;
   let totalOutput = 0;
   let callCount = 0;
+  const skippedChunks: DiffItem[][] = [];
 
   for (const chunk of chunks) {
     if (callCount >= MAX_API_CALLS) {
-      allWarnings.push(`Reached max API calls (${MAX_API_CALLS}), ${chunks.length - callCount} chunks skipped`);
-      break;
+      skippedChunks.push(chunk);
+      continue;
     }
 
     const chunkDiffText = formatDiffs(chunk);
@@ -156,6 +157,21 @@ async function callStaticAnalysisSplit(
     totalInput += result.tokenUsage.input;
     totalOutput += result.tokenUsage.output;
     callCount++;
+  }
+
+  // 미처리 파일: API 호출 한도 초과로 잘린 청크들 (우선순위 정렬 기준 끝쪽)
+  if (skippedChunks.length > 0) {
+    const skippedFiles = skippedChunks.flatMap((c) => c.map((d) => d.file_path));
+    allWarnings.push(formatUnprocessedFilesWarning(skippedFiles, 'token-budget'));
+    allWarnings.push(
+      `Reached max API calls (${MAX_API_CALLS}), ${skippedChunks.length} chunk(s) skipped`
+    );
+  }
+
+  // 단일 파일이 너무 큰 경우 — 분석 미수행, fallback warning만
+  if (oversizedFiles.length > 0) {
+    const oversizedNames = oversizedFiles.map((d) => d.file_path);
+    allWarnings.push(formatUnprocessedFilesWarning(oversizedNames, 'oversized'));
   }
 
   // 중복 제거: 같은 file + 같은 title (confidence 높은 쪽 유지)
@@ -184,20 +200,50 @@ function formatDiffs(diffs: DiffItem[]): string {
     .join('\n\n');
 }
 
+/**
+ * 파일 경로 기반 분석 우선순위. 청크 분할 시 점수가 높은 파일을 먼저 분석.
+ * 토큰 예산 초과로 일부 파일이 잘릴 때, 가장 중요한 파일이 보존되도록.
+ */
 function getFilePriority(filePath: string): number {
-  if (/\.(ts|tsx)$/.test(filePath)) return 3;
-  if (/\.(js|jsx)$/.test(filePath)) return 2;
-  if (/\.(json|sql|env)/.test(filePath)) return 1;
-  return 0;
+  // 1순위: API route — 인증/데이터 노출 직결
+  if (/^app\/api\//.test(filePath)) return 6;
+  // 2순위: 인증/보안/미들웨어
+  if (/(?:^|\/)(auth|middleware|proxy)(?:\.|\/|-)/.test(filePath)) return 5;
+  // 3순위: 비즈니스 로직
+  if (/^src\/lib\//.test(filePath)) return 4;
+  // 4순위: 컴포넌트
+  if (/^src\/components\//.test(filePath)) return 3;
+  // 5순위: 설정 파일
+  if (
+    /(?:^|\/)(package\.json|tsconfig\.json|next\.config\.[jt]s|vercel\.json|\.gitignore|\.env)/
+      .test(filePath)
+  ) return 2;
+  // 6순위: 그 외
+  return 1;
 }
 
-function chunkDiffs(diffs: DiffItem[]): DiffItem[][] {
+/**
+ * diff를 청크 단위로 분할합니다.
+ * 단일 파일이 DIFF_HARD_LIMIT를 초과하면 청크에 넣지 않고 oversizedFiles로 분리합니다.
+ * (잘린 diff는 모델이 hunk 헤더 일관성을 잃고 헛 이슈를 만들 위험)
+ */
+function chunkDiffs(diffs: DiffItem[]): {
+  chunks: DiffItem[][];
+  oversizedFiles: DiffItem[];
+} {
   const chunks: DiffItem[][] = [];
+  const oversizedFiles: DiffItem[] = [];
   let current: DiffItem[] = [];
   let currentTokens = 0;
 
   for (const diff of diffs) {
     const tokens = estimateTokens(diff.diff_content);
+
+    // 단일 파일이 HARD 초과 → oversized 분리, 분석 안 함
+    if (tokens > TOKEN_BUDGET.DIFF_HARD_LIMIT) {
+      oversizedFiles.push(diff);
+      continue;
+    }
 
     if (currentTokens + tokens > TOKEN_BUDGET.CHUNK_TARGET && current.length > 0) {
       chunks.push(current);
@@ -213,7 +259,25 @@ function chunkDiffs(diffs: DiffItem[]): DiffItem[][] {
     chunks.push(current);
   }
 
-  return chunks;
+  return { chunks, oversizedFiles };
+}
+
+/**
+ * 미처리 파일 목록을 사용자 가독 메시지로 포맷합니다.
+ * 처음 5개 파일까지 본문에 표시, 그 이상은 "...(외 N개)"로 축약.
+ */
+function formatUnprocessedFilesWarning(
+  files: string[],
+  reason: 'token-budget' | 'oversized'
+): string {
+  const HEAD_LIMIT = 5;
+  const head = files.slice(0, HEAD_LIMIT).join(', ');
+  const rest = files.length > HEAD_LIMIT ? `, ...(외 ${files.length - HEAD_LIMIT}개)` : '';
+  const reasonText =
+    reason === 'oversized'
+      ? `single file exceeds hard limit (${TOKEN_BUDGET.DIFF_HARD_LIMIT} tokens)`
+      : `token budget exceeded`;
+  return `Unanalyzed files (${reasonText}, ${files.length} files): ${head}${rest}`;
 }
 
 function deduplicateIssues(issues: DetectedIssue[]): DetectedIssue[] {
