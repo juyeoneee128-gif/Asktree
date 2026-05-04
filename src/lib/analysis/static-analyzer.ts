@@ -4,7 +4,8 @@ import {
   buildStaticAnalysisSystem,
   buildStaticAnalysisMessage,
 } from './prompts';
-import { parseAnalysisResponse, applyLevelLimits } from './parse-response';
+import type { AnalysisMode } from './prompts';
+import { parseAnalysisResponse, applyLevelLimits, getLevelLimits } from './parse-response';
 import type { DetectedIssue, AnalysisResult } from './parse-response';
 
 const MAX_DIFF_TOKENS = 12_000; // ~50KB, 단일 호출 상한
@@ -27,7 +28,8 @@ interface StaticAnalysisInput {
  * diff 크기에 따라 단일 호출 또는 분할 호출합니다.
  */
 export async function analyzeStatic(
-  input: StaticAnalysisInput
+  input: StaticAnalysisInput,
+  mode: AnalysisMode = 'full'
 ): Promise<AnalysisResult> {
   if (input.diffs.length === 0) {
     return { issues: [], tokenUsage: { input: 0, output: 0 }, warnings: ['No diffs to analyze'] };
@@ -39,11 +41,11 @@ export async function analyzeStatic(
 
   if (estimatedTokenCount <= MAX_DIFF_TOKENS) {
     // 단일 호출
-    return await callStaticAnalysis(input, combinedDiff);
+    return await callStaticAnalysis(input, combinedDiff, mode);
   }
 
   // 분할 호출: 파일별로 분할
-  return await callStaticAnalysisSplit(input);
+  return await callStaticAnalysisSplit(input, mode);
 }
 
 /**
@@ -51,7 +53,8 @@ export async function analyzeStatic(
  */
 async function callStaticAnalysis(
   input: StaticAnalysisInput,
-  diffsText: string
+  diffsText: string,
+  mode: AnalysisMode
 ): Promise<AnalysisResult> {
   const userMessage = buildStaticAnalysisMessage({
     projectName: input.projectName,
@@ -61,20 +64,21 @@ async function callStaticAnalysis(
   });
 
   const result = await callClaude({
-    systemPrompt: buildStaticAnalysisSystem(),
+    systemPrompt: buildStaticAnalysisSystem(mode),
     userMessage,
     tools: [ANALYSIS_RESULT_TOOL],
     maxTokens: 8192,
   });
 
-  return parseAnalysisResponse(result);
+  return parseAnalysisResponse(result, mode);
 }
 
 /**
  * diff가 큰 경우 파일별로 분할하여 여러 번 호출
  */
 async function callStaticAnalysisSplit(
-  input: StaticAnalysisInput
+  input: StaticAnalysisInput,
+  mode: AnalysisMode
 ): Promise<AnalysisResult> {
   // ts/tsx 파일 우선 정렬 (코드 파일 우선)
   const sorted = [...input.diffs].sort((a, b) => {
@@ -106,7 +110,8 @@ async function callStaticAnalysisSplit(
         ...input,
         filesChanged: chunkFiles,
       },
-      chunkDiffText
+      chunkDiffText,
+      mode
     );
 
     allIssues.push(...result.issues);
@@ -121,7 +126,10 @@ async function callStaticAnalysisSplit(
 
   // 분할 호출 결과 합산 후 다시 한 번 레벨별 상한 적용
   // (각 청크별로 이미 상한이 걸려있어도 합치면 다시 초과할 수 있음)
-  const { issues: limited, truncationWarnings } = applyLevelLimits(deduplicated);
+  const { issues: limited, truncationWarnings } = applyLevelLimits(
+    deduplicated,
+    getLevelLimits(mode)
+  );
   allWarnings.push(...truncationWarnings);
 
   return {

@@ -6,6 +6,7 @@ import {
   buildSessionComparisonSystem,
   buildSessionComparisonMessage,
 } from './prompts';
+import type { AnalysisMode } from './prompts';
 import { parseAnalysisResponse } from './parse-response';
 import type { AnalysisResult } from './parse-response';
 
@@ -32,7 +33,8 @@ interface SessionComparisonInput {
  * 이전 세션이 없거나 겹치는 파일이 없으면 빈 결과를 반환합니다.
  */
 export async function analyzeSessionDiff(
-  input: SessionComparisonInput
+  input: SessionComparisonInput,
+  mode: AnalysisMode = 'full'
 ): Promise<AnalysisResult> {
   const supabase = createAdminClient();
 
@@ -93,12 +95,12 @@ export async function analyzeSessionDiff(
   });
 
   const result = await callClaude({
-    systemPrompt: buildSessionComparisonSystem(),
+    systemPrompt: buildSessionComparisonSystem(mode),
     userMessage,
     tools: [ANALYSIS_RESULT_TOOL],
   });
 
-  return parseAnalysisResponse(result);
+  return parseAnalysisResponse(result, mode);
 }
 
 // ─── 헬퍼 ───

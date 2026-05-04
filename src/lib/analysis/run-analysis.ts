@@ -3,6 +3,7 @@ import { analyzeStatic } from './static-analyzer';
 import { analyzeSessionDiff } from './session-comparator';
 import { saveDetectedIssues } from './save-issues';
 import type { DetectedIssue } from './parse-response';
+import type { AnalysisMode } from './prompts';
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '../supabase/types';
 
@@ -14,6 +15,7 @@ function createAdminClient() {
 }
 
 export interface AnalysisRunResult {
+  mode: AnalysisMode;
   issues_created: number;
   issues_redetected: number;
   total_issues_found: number;
@@ -34,10 +36,15 @@ interface DiffItem {
  * 3. 세션 간 비교 (3-2)
  * 4. 이슈 저장 (3-3)
  * 5. ephemeral_data 삭제
+ *
+ * mode:
+ * - 'full' (기본값): 13개 카테고리 전체 분석. 수동 재분석 시 사용.
+ * - 'problems_only': critical 위주 + 상한 축소. 자동 분석(push) 시 크레딧 절감용.
  */
 export async function runAnalysis(
   projectId: string,
-  sessionId: string
+  sessionId: string,
+  mode: AnalysisMode = 'full'
 ): Promise<AnalysisRunResult> {
   const warnings: string[] = [];
   let totalInput = 0;
@@ -88,12 +95,15 @@ export async function runAnalysis(
 
   if (diffs.length > 0) {
     try {
-      const staticResult = await analyzeStatic({
-        projectName,
-        sessionTitle,
-        filesChanged,
-        diffs,
-      });
+      const staticResult = await analyzeStatic(
+        {
+          projectName,
+          sessionTitle,
+          filesChanged,
+          diffs,
+        },
+        mode
+      );
 
       allIssues.push(...staticResult.issues);
       warnings.push(...staticResult.warnings);
@@ -109,11 +119,14 @@ export async function runAnalysis(
   // 3. 세션 간 비교
   if (diffs.length > 0) {
     try {
-      const compResult = await analyzeSessionDiff({
-        projectId,
-        currentSessionId: sessionId,
-        currentDiffs: diffs,
-      });
+      const compResult = await analyzeSessionDiff(
+        {
+          projectId,
+          currentSessionId: sessionId,
+          currentDiffs: diffs,
+        },
+        mode
+      );
 
       allIssues.push(...compResult.issues);
       warnings.push(...compResult.warnings);
@@ -136,6 +149,7 @@ export async function runAnalysis(
   }
 
   return {
+    mode,
     issues_created: saveResult.created,
     issues_redetected: saveResult.redetected,
     total_issues_found: allIssues.length,
