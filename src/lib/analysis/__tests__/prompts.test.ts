@@ -217,14 +217,21 @@ describe('buildSessionComparisonSystem — 모드 분기', () => {
     );
   });
 
-  it('full 모드는 6섹션 구조와 4개 카테고리를 갖는다', () => {
+  it('full 모드는 6섹션 구조와 6개 카테고리를 갖는다', () => {
     const prompt = buildSessionComparisonSystem('full');
     expect(prompt).toContain('# ① 역할 정의');
+    expect(prompt).toContain('# ② 입력 포맷');
+    expect(prompt).toContain('# ③ 판단 기준');
+    expect(prompt).toContain('# ④ 작성 가이드');
     expect(prompt).toContain('# ⑤ 출력 스키마');
-    expect(prompt).toContain('기능 삭제');
-    expect(prompt).toContain('동작 변경');
-    expect(prompt).toContain('설정 변경');
-    expect(prompt).toContain('의존성 제거');
+    expect(prompt).toContain('# ⑥ Example output');
+    // 6개 카테고리 선언 (기존 4 + 신규 2)
+    expect(prompt).toContain('**기능 삭제**');
+    expect(prompt).toContain('**동작 변경**');
+    expect(prompt).toContain('**설정 변경**');
+    expect(prompt).toContain('**의존성 제거**');
+    expect(prompt).toContain('**API 계약 변경**');
+    expect(prompt).toContain('**스키마 변경**');
   });
 
   it('full 모드는 critical 5/warning 5/info 3 상한을 명시한다', () => {
@@ -234,14 +241,15 @@ describe('buildSessionComparisonSystem — 모드 분기', () => {
     expect(prompt).toContain('info: 최대 3건');
   });
 
-  it('problems_only 모드는 기능 삭제(critical)만 카테고리 선언으로 포함', () => {
+  it('problems_only 모드는 기능 삭제 + 스키마 변경만 카테고리 선언으로 포함', () => {
     const prompt = buildSessionComparisonSystem('problems_only');
-    expect(prompt).toContain('**기능 삭제** (critical)');
-    expect(prompt).toContain('확실한 기능 회귀');
+    expect(prompt).toContain('**기능 삭제**');
+    expect(prompt).toContain('**스키마 변경**');
     // 카테고리 선언으로 등장하지 않아야 하는 항목
-    expect(prompt).not.toContain('**동작 변경** (warning)');
-    expect(prompt).not.toContain('**설정 변경** (warning)');
-    expect(prompt).not.toContain('**의존성 제거** (info)');
+    expect(prompt).not.toContain('**동작 변경**');
+    expect(prompt).not.toContain('**설정 변경**');
+    expect(prompt).not.toContain('**의존성 제거**');
+    expect(prompt).not.toContain('**API 계약 변경**');
   });
 
   it('problems_only 모드는 critical 3/warning 2/info 0 상한을 명시한다', () => {
@@ -258,6 +266,74 @@ describe('buildSessionComparisonSystem — 모드 분기', () => {
       expect(prompt).toContain('confidence');
       expect(prompt).toContain('리팩토링');
     }
+  });
+});
+
+describe('buildSessionComparisonSystem — A/B/C 판정 구조', () => {
+  it('full 모드는 A/B/C 3티어 판정 트리를 명시한다', () => {
+    const prompt = buildSessionComparisonSystem('full');
+    expect(prompt).toContain('A → B → C');
+    expect(prompt).toContain('### A. 명확한 의도적 변경');
+    expect(prompt).toContain('### B. 의심스러운 변경');
+    expect(prompt).toContain('### C. 확실한 사고');
+  });
+
+  it('A 티어는 "보고하지 마세요" 지침을 포함한다', () => {
+    const prompt = buildSessionComparisonSystem('full');
+    expect(prompt).toMatch(/A[\s\S]*명확한 의도적 변경[\s\S]*보고하지 마세요/);
+    expect(prompt).toContain('이름·위치만 바뀐 리팩토링');
+    expect(prompt).toContain('파일 이동(rename)');
+  });
+
+  it('B 티어는 warning + confidence 0.6~0.85를 매핑한다', () => {
+    const prompt = buildSessionComparisonSystem('full');
+    expect(prompt).toMatch(/B[\s\S]*의심스러운[\s\S]*warning[\s\S]*0\.6~0\.85/);
+    expect(prompt).toContain('대체 구현이 diff에 보이지 않음');
+    expect(prompt).toContain('패키지를 사용하는 코드가 diff에 잔존');
+  });
+
+  it('C 티어는 critical + confidence 0.9+를 매핑한다', () => {
+    const prompt = buildSessionComparisonSystem('full');
+    expect(prompt).toMatch(/C[\s\S]*확실한 사고[\s\S]*critical[\s\S]*0\.9\+/);
+    expect(prompt).toContain('핵심 파일');
+    expect(prompt).toContain('마이그레이션 파일 없음');
+  });
+
+  it('problems_only 모드는 C 티어 위주 가이드를 명시한다', () => {
+    const prompt = buildSessionComparisonSystem('problems_only');
+    expect(prompt).toContain('C 티어');
+    expect(prompt).toMatch(/B 티어.*무시/);
+    // problems_only에는 full의 A→B→C 평가 트리가 들어가지 않음 (간소화 버전 사용)
+    expect(prompt).not.toContain('A → B → C');
+  });
+});
+
+describe('buildSessionComparisonSystem — Example output', () => {
+  it('full 모드 ⑥은 critical + warning 두 예시를 포함한다', () => {
+    const prompt = buildSessionComparisonSystem('full');
+    // critical 예시 — 결제 API route 삭제
+    expect(prompt).toContain('"결제 API route 삭제"');
+    expect(prompt).toContain('app/api/checkout/route.ts');
+    expect(prompt).toContain('"level": "critical"');
+    // warning 예시 — Stripe 의존성 제거 + 사용 코드 잔존
+    expect(prompt).toContain('"Stripe 의존성 제거 + 사용 코드 잔존"');
+    expect(prompt).toContain('src/hooks/useCheckout.ts');
+    expect(prompt).toContain('"level": "warning"');
+  });
+
+  it('problems_only 모드 ⑥은 critical 예시 1개만 포함한다', () => {
+    const prompt = buildSessionComparisonSystem('problems_only');
+    expect(prompt).toContain('"결제 API route 삭제"');
+    expect(prompt).toContain('"level": "critical"');
+    // warning 예시는 problems_only 예시에 없어야 함
+    expect(prompt).not.toContain('"Stripe 의존성 제거 + 사용 코드 잔존"');
+  });
+
+  it('Example output에 신규 필드(confidence/start_line/end_line)가 포함된다', () => {
+    const prompt = buildSessionComparisonSystem('full');
+    expect(prompt).toContain('"confidence":');
+    expect(prompt).toContain('"start_line":');
+    expect(prompt).toContain('"end_line":');
   });
 });
 

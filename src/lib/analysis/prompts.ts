@@ -316,29 +316,70 @@ ${exampleSection}`;
 /**
  * 세션 비교 시스템 프롬프트를 모드에 따라 빌드합니다.
  *
- * - full: 4개 카테고리 (기능 삭제/동작 변경/설정 변경/의존성 제거)
- * - problems_only: 기능 삭제(critical)에만 집중
+ * - full: 6개 카테고리 (기능 삭제/동작 변경/설정 변경/의존성 제거/API 계약/스키마)
+ *         + A/B/C 의도 vs 사고 판정 트리
+ * - problems_only: 기능 삭제 + 스키마 변경 카테고리만 (확실한 사고 위주)
  */
 export function buildSessionComparisonSystem(mode: AnalysisMode = 'full'): string {
   const isProblemsOnly = mode === 'problems_only';
 
   const roleAddendum = isProblemsOnly
-    ? '\n**이 모드에서는 확실한 기능 회귀(삭제/파괴적 변경)만 보고하세요. 동작 변경, 설정 변경, 의존성 제거는 보고하지 마세요.**\n'
+    ? `
+**이 모드에서는 확실한 사고만 보고하세요. 핵심 파일 통째 삭제, DB 스키마/마이그레이션 누락 같은 명백한 회귀에만 집중하고, 동작/설정/의존성/API 계약 변경은 무시하세요.**
+`
     : '';
 
   const categoriesSection = isProblemsOnly
-    ? `## 감지 카테고리 (problems_only — 기능 회귀만)
+    ? `## 감지 카테고리 (problems_only — 명백한 사고만)
 
-이 모드에서는 **기능 삭제(critical)만** 보고하세요. 그 외 카테고리는 무시하세요.
+이 모드에서는 **다음 2개 카테고리만** 보고하세요. 그 외는 무시하세요.
 
-1. **기능 삭제** (critical) — 이전에 있던 함수/컴포넌트/라우트/API 엔드포인트가 대체 없이 삭제됨
+1. **기능 삭제** (critical 가능) — 이전에 있던 함수/컴포넌트/라우트/API 엔드포인트가 대체 없이 삭제됨
+6. **스키마 변경** (critical 가능) — DB 테이블/컬럼 변경, 마이그레이션 누락 위험
 
-위에 해당하지 않으면 보고하지 마세요. 단, **명백한 파괴적 변경**(예: API 시그니처가 호환되지 않는 방식으로 변경)은 warning으로 보고할 수 있습니다.`
-    : `## 감지 카테고리
-1. **기능 삭제** (critical) — 이전에 있던 함수/컴포넌트/라우트/API 엔드포인트가 대체 없이 삭제됨
+API 시그니처가 호환되지 않는 방식으로 깨지는 경우는 카테고리 1로 간주하여 보고할 수 있습니다.`
+    : `## 감지 카테고리 (분류 기준)
+
+다음은 변경 유형 분류표입니다. 최종 level은 아래 **A/B/C 판정**으로 결정합니다.
+
+1. **기능 삭제** — 이전에 있던 함수/컴포넌트/라우트/API 엔드포인트가 사라짐
 2. **동작 변경** (warning) — 함수의 리턴 타입, 파라미터, 핵심 로직이 변경됨
 3. **설정 변경** (warning) — 환경변수, config 파일의 값이 변경됨
-4. **의존성 제거** (info) — package.json에서 패키지가 삭제됨`;
+4. **의존성 제거** (info) — package.json에서 패키지가 삭제됨
+5. **API 계약 변경** (warning) — 엔드포인트 경로/요청/응답 구조가 바뀜 (프론트-백 정합 깨짐 위험)
+6. **스키마 변경** (warning) — DB 테이블/컬럼 변경 (마이그레이션 누락 위험)`;
+
+  const judgementSection = isProblemsOnly
+    ? `## 변경 의도 판정 (problems_only — C 티어 위주)
+
+problems_only 모드에서는 **C 티어(확실한 사고)에만 집중**하세요. 가장 명백한 사례만 보고:
+
+- 이전 세션에서 추가된 핵심 파일(API route, 인증 등)이 통째로 삭제 + 대체 없음
+- DB 스키마 변경(테이블/컬럼 삭제 또는 타입 변경) + 마이그레이션 파일 없음
+
+A 티어(의도적 리팩토링)는 무조건 무시. B 티어(의심스러운)도 이 모드에서는 무시하세요. 명백하지 않으면 보고하지 마세요.`
+    : `## 변경 의도 판정 (A → B → C 순서로 평가)
+
+각 변경에 대해 **A → B → C** 순서로 평가하세요. A가 적용되면 보고하지 않고, B면 warning, C면 critical입니다.
+
+### A. 명확한 의도적 변경 — 보고하지 마세요
+- 같은 diff 내에 동등한 기능의 새 구현이 존재 (이름·위치만 바뀐 리팩토링)
+- 메타정보(sessionTitle/summary)에 "삭제", "제거", "교체", "리팩토링" 의도가 명시
+- 파일 이동(rename) — 경로만 바뀌고 본문 동일
+- 주석·docstring·포매팅 변경, 사용되지 않는 import 제거
+
+### B. 의심스러운 변경 — warning으로 보고 (confidence 0.6~0.85)
+- 기능이 삭제되었으나 대체 구현이 diff에 보이지 않음 (다른 파일에 있을 가능성도 detail에 명시)
+- 의존성 제거 + 해당 패키지를 사용하는 코드가 diff에 잔존
+- 환경변수 제거 + 코드에서 참조 잔존
+- API 엔드포인트 경로 변경, 호출 측 코드는 변경 안 됨
+- DB 컬럼 타입 변경 + 해당 컬럼을 다루는 코드 미수정
+
+### C. 확실한 사고 — critical로 보고 (confidence 0.9+)
+- 이전 세션에서 추가된 핵심 파일(API route, 인증, middleware 등)이 통째로 삭제 + 대체 없음
+- package.json 핵심 의존성 제거 + 관련 코드 미수정 (런타임 에러 확정)
+- .env 변수 삭제 + 코드에서 해당 변수 참조 잔존
+- DB 스키마 변경(컬럼 삭제·타입 변경) + 마이그레이션 파일 없음 또는 backfill 누락`;
 
   const limitsSection = isProblemsOnly
     ? `## 이슈 수 상한 (problems_only)
@@ -349,6 +390,60 @@ export function buildSessionComparisonSystem(mode: AnalysisMode = 'full'): strin
 - critical: 최대 5건
 - warning: 최대 5건
 - info: 최대 3건`;
+
+  const exampleSection = isProblemsOnly
+    ? `# ⑥ Example output
+
+\`\`\`json
+{
+  "issues": [
+    {
+      "title": "결제 API route 삭제",
+      "level": "critical",
+      "fact": "이전 세션에서 추가된 app/api/checkout/route.ts가 현재 세션에서 대체 구현 없이 삭제되었습니다.",
+      "detail": "결제 흐름을 처리하던 엔드포인트가 사라졌고 다른 파일에 동등 구현이 보이지 않습니다. 프론트의 결제 호출이 404로 떨어져 전체 결제 기능이 중단됩니다.",
+      "fix_command": "이전 세션에서 app/api/checkout/route.ts에 있던 결제 API route를 복구해줘. Stripe Payment Intent를 생성하고 webhook을 처리하는 로직이야.",
+      "file": "app/api/checkout/route.ts",
+      "basis": "기능 회귀 (C 티어 — 핵심 라우트 통째 삭제)",
+      "confidence": 0.95,
+      "start_line": 1,
+      "end_line": 1
+    }
+  ]
+}
+\`\`\``
+    : `# ⑥ Example output
+
+\`\`\`json
+{
+  "issues": [
+    {
+      "title": "결제 API route 삭제",
+      "level": "critical",
+      "fact": "이전 세션에서 추가된 app/api/checkout/route.ts가 현재 세션에서 대체 구현 없이 삭제되었습니다.",
+      "detail": "결제 흐름을 처리하던 엔드포인트가 사라졌고 다른 파일에 동등 구현이 보이지 않습니다. 프론트의 결제 호출이 404로 떨어져 전체 결제 기능이 중단됩니다.",
+      "fix_command": "이전 세션에서 app/api/checkout/route.ts에 있던 결제 API route를 복구해줘. Stripe Payment Intent를 생성하고 webhook을 처리하는 로직이야.",
+      "file": "app/api/checkout/route.ts",
+      "basis": "기능 회귀 (C 티어 — 핵심 라우트 통째 삭제)",
+      "confidence": 0.95,
+      "start_line": 1,
+      "end_line": 1
+    },
+    {
+      "title": "Stripe 의존성 제거 + 사용 코드 잔존",
+      "level": "warning",
+      "fact": "package.json에서 stripe 패키지가 제거되었지만 src/hooks/useCheckout.ts에서 여전히 import 중입니다.",
+      "detail": "런타임에 'Cannot find module stripe' 에러가 발생하여 결제 훅을 사용하는 페이지가 깨집니다. 의존성 제거가 의도였다면 사용 코드도 함께 정리되어야 합니다.",
+      "fix_command": "package.json에 stripe 의존성을 다시 추가하거나, src/hooks/useCheckout.ts에서 stripe 사용 코드를 제거하고 결제 훅을 다른 방식으로 구현해줘.",
+      "file": "package.json, src/hooks/useCheckout.ts",
+      "basis": "의존성 제거 (B 티어 — 사용 코드 미수정)",
+      "confidence": 0.85,
+      "start_line": 14,
+      "end_line": 14
+    }
+  ]
+}
+\`\`\``;
 
   return `# ① 역할 정의
 
@@ -373,21 +468,18 @@ ${roleAddendum}
 
 ## Partial-context 경고
 - 당신은 두 세션의 diff와 메타정보만 봅니다. 전체 코드베이스나 git history는 보지 않습니다.
-- 같은 diff 내에서 함수가 다른 이름으로 재정의된 흔적이 있으면 "삭제"가 아니라 **리팩토링**일 수 있으니 보고하지 마세요.
+- 같은 diff 내에서 함수가 다른 이름으로 재정의된 흔적이 있으면 "삭제"가 아니라 **리팩토링**일 수 있습니다.
 - 메타정보의 sessionTitle/summary가 "리팩토링", "이름 변경" 등을 명시하면 의도된 변경으로 간주하세요.
 
 ## 신뢰도 가이드
-- **명백한 기능 회귀(예: API 엔드포인트 통째 삭제, 라우트 파일 자체 삭제)는 confidence 0.9+로 critical 보고**
-- **이름·시그니처는 같은데 본문이 사라진 경우는 confidence 0.7~0.85로 warning**
-- 의도 판단이 모호하면 detail에 "리팩토링일 수 있습니다" 명시 + confidence 낮춤
+- A 티어(의도적)는 confidence 무관 — 보고하지 마세요.
+- B 티어(의심스러움)는 confidence 0.6~0.85, detail에 불확실성 명시
+- C 티어(확실한 사고)는 confidence 0.9+
+- 의도 판단이 모호하면 detail에 "리팩토링일 수 있습니다" 명시 + B 티어 + 낮은 confidence
+
+${judgementSection}
 
 ${categoriesSection}
-
-## 보고하지 말아야 할 항목
-- 의도적인 리팩토링 (이름 변경 + 동일 기능 유지)
-- 같은 diff 내에서 대체 구현이 있는 "삭제"
-- 주석·docstring·포매팅 변경
-- 사용되지 않는 import 제거
 
 # ④ 작성 가이드
 
@@ -395,11 +487,18 @@ ${categoriesSection}
 - "이전 세션에서 ~했던 ~가 현재 세션에서 ~되었습니다" 형태
 - 예: "이전 세션에서 정의되었던 validateEmail 함수가 현재 세션에서 삭제되었습니다."
 
+## detail
+- 사고 시나리오를 구체적으로 (어떤 사용자 흐름이 깨지는지)
+- B 티어는 불확실성 명시 ("다른 파일에 동등 구현이 있을 가능성은 확인하지 못했습니다")
+
 ## fix_command
 - "이전 세션에서 삭제된 X를 Y에 복구해줘. ~ 로직이 필요해." 형태의 자연어
 
+## basis
+- "기능 회귀 (C 티어)", "의존성 제거 (B 티어 — 사용 코드 미수정)" 형태로 카테고리 + 티어 명시
+
 ## file
-- diff에 등장하는 실제 파일 경로만 사용
+- diff에 등장하는 실제 파일 경로만 사용. 그룹 이슈는 쉼표로 나열.
 
 # ⑤ 출력 스키마
 
@@ -409,26 +508,7 @@ report_analysis_results 도구를 호출하여 결과를 보고하세요.
 ${limitsSection}
 - 이슈가 없으면 반드시 빈 배열 반환
 
-# ⑥ Example output
-
-\`\`\`json
-{
-  "issues": [
-    {
-      "title": "이메일 검증 함수 삭제",
-      "level": "critical",
-      "fact": "이전 세션에서 정의되었던 validateEmail 함수가 현재 세션의 src/utils/validation.ts에서 대체 구현 없이 삭제되었습니다.",
-      "detail": "회원가입 폼이 이 함수에 의존하고 있다면 사용자 입력 검증이 우회되어 잘못된 이메일이 DB에 저장될 수 있습니다. 다만 다른 파일에 동일 기능 함수가 있을 가능성은 확인하지 못했습니다.",
-      "fix_command": "이전 세션에서 src/utils/validation.ts에 있던 validateEmail 함수를 복구해줘. 정규식 기반 이메일 형식 검증 로직이야.",
-      "file": "src/utils/validation.ts",
-      "basis": "기능 회귀 감지",
-      "confidence": 0.82,
-      "start_line": 14,
-      "end_line": 22
-    }
-  ]
-}
-\`\`\``;
+${exampleSection}`;
 }
 
 export const GUIDELINE_GENERATION_SYSTEM = `당신은 CLAUDE.md 보호 규칙 작성 전문가입니다.
