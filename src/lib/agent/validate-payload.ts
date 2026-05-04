@@ -22,6 +22,16 @@ export interface EslintIssueRaw {
   message: string;
 }
 
+/**
+ * 에이전트가 수집한 docs/*.md 파일. agent/docs-collector.js 출력 형식과 일치.
+ * 서버는 SHA-256 해시로 변경을 감지하여 변경된 파일만 기능 추출 재실행.
+ */
+export interface DocFile {
+  path: string;        // 'docs/prd_v3.md' (POSIX 슬래시)
+  content: string;     // markdown 본문
+  modified_at: string; // ISO 타임스탬프 (파일 mtime)
+}
+
 export interface AgentPushPayload {
   project_id: string;
   session_data: {
@@ -29,6 +39,7 @@ export interface AgentPushPayload {
     file_tree?: FileTreeEntry[];
     diffs?: DiffEntry[];
     eslint_results?: EslintIssueRaw[];
+    docs_files?: DocFile[];
   };
   metadata: {
     agent_version: string;
@@ -94,6 +105,34 @@ export function validatePayload(
     if (sd.file_tree !== undefined) {
       if (!Array.isArray(sd.file_tree)) {
         errors.push('session_data.file_tree must be an array');
+      }
+    }
+
+    if (sd.docs_files !== undefined) {
+      if (!Array.isArray(sd.docs_files)) {
+        errors.push('session_data.docs_files must be an array');
+      } else {
+        for (let i = 0; i < sd.docs_files.length; i++) {
+          const d = sd.docs_files[i] as Record<string, unknown>;
+          if (!d.path || typeof d.path !== 'string') {
+            errors.push(`session_data.docs_files[${i}].path is required`);
+          }
+          if (typeof d.content !== 'string') {
+            errors.push(`session_data.docs_files[${i}].content must be a string`);
+          } else if (d.content.length > 60_000) {
+            // agent의 50KB 한도 + 여유. 초과는 페이로드 정합성 의심
+            errors.push(
+              `session_data.docs_files[${i}].content exceeds 60_000 chars (${d.content.length})`
+            );
+          }
+          if (!d.modified_at || typeof d.modified_at !== 'string') {
+            errors.push(`session_data.docs_files[${i}].modified_at is required`);
+          } else if (Number.isNaN(Date.parse(d.modified_at))) {
+            errors.push(
+              `session_data.docs_files[${i}].modified_at must be a valid ISO date string`
+            );
+          }
+        }
       }
     }
 
