@@ -130,11 +130,13 @@ export async function POST(request: Request) {
   }
 
   // 10. 자동 분석 트리거 (비동기, 응답 차단 안 함)
-  // 기획서가 업로드된 프로젝트는 분석 후 자동으로 구현 현황 재판정
+  // 자동 분석은 problems_only 모드 — critical 위주 + 상한 축소로 크레딧 절감.
+  // 수동 재분석(analyze 라우트)은 full 모드.
+  // 기획서가 업로드된 프로젝트는 분석 후 자동으로 구현 현황 재판정.
   if (payload.session_data.diffs && payload.session_data.diffs.length > 0) {
     (async () => {
       try {
-        await runAnalysis(payload.project_id, saved.id);
+        await runAnalysis(payload.project_id, saved.id, 'problems_only');
 
         const adminClient = createClient<Database>(
           process.env.NEXT_PUBLIC_SUPABASE_URL!,

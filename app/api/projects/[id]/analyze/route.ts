@@ -52,9 +52,9 @@ export async function POST(request: Request, { params }: Params) {
     );
   }
 
-  // 분석 실행
+  // 분석 실행 (수동 트리거 → full 모드)
   try {
-    const result = await runAnalysis(projectId, session_id);
+    const result = await runAnalysis(projectId, session_id, 'full');
 
     return NextResponse.json({
       success: true,
