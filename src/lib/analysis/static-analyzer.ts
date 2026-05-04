@@ -159,9 +159,12 @@ async function callStaticAnalysisSplit(
     callCount++;
   }
 
+  const unprocessedFiles: string[] = [];
+
   // 미처리 파일: API 호출 한도 초과로 잘린 청크들 (우선순위 정렬 기준 끝쪽)
   if (skippedChunks.length > 0) {
     const skippedFiles = skippedChunks.flatMap((c) => c.map((d) => d.file_path));
+    unprocessedFiles.push(...skippedFiles);
     allWarnings.push(formatUnprocessedFilesWarning(skippedFiles, 'token-budget'));
     allWarnings.push(
       `Reached max API calls (${MAX_API_CALLS}), ${skippedChunks.length} chunk(s) skipped`
@@ -171,6 +174,7 @@ async function callStaticAnalysisSplit(
   // 단일 파일이 너무 큰 경우 — 분석 미수행, fallback warning만
   if (oversizedFiles.length > 0) {
     const oversizedNames = oversizedFiles.map((d) => d.file_path);
+    unprocessedFiles.push(...oversizedNames);
     allWarnings.push(formatUnprocessedFilesWarning(oversizedNames, 'oversized'));
   }
 
@@ -189,6 +193,7 @@ async function callStaticAnalysisSplit(
     issues: limited,
     tokenUsage: { input: totalInput, output: totalOutput },
     warnings: allWarnings,
+    ...(unprocessedFiles.length > 0 ? { unprocessed_files: unprocessedFiles } : {}),
   };
 }
 

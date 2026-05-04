@@ -21,6 +21,11 @@ export interface AnalysisRunResult {
   total_issues_found: number;
   token_usage: { input: number; output: number };
   warnings: string[];
+  /**
+   * 토큰 예산 초과 등으로 분석되지 않은 파일 경로 목록.
+   * 청크 분할이 발생하지 않은 경우 undefined.
+   */
+  unprocessed_files?: string[];
 }
 
 interface DiffItem {
@@ -92,6 +97,7 @@ export async function runAnalysis(
 
   // 2. 정적 분석
   const allIssues: DetectedIssue[] = [];
+  const unprocessedFiles: string[] = [];
 
   if (diffs.length > 0) {
     try {
@@ -109,6 +115,9 @@ export async function runAnalysis(
       warnings.push(...staticResult.warnings);
       totalInput += staticResult.tokenUsage.input;
       totalOutput += staticResult.tokenUsage.output;
+      if (staticResult.unprocessed_files) {
+        unprocessedFiles.push(...staticResult.unprocessed_files);
+      }
     } catch (err) {
       warnings.push(`Static analysis failed: ${(err as Error).message}`);
     }
@@ -132,6 +141,9 @@ export async function runAnalysis(
       warnings.push(...compResult.warnings);
       totalInput += compResult.tokenUsage.input;
       totalOutput += compResult.tokenUsage.output;
+      if (compResult.unprocessed_files) {
+        unprocessedFiles.push(...compResult.unprocessed_files);
+      }
     } catch (err) {
       warnings.push(`Session comparison failed: ${(err as Error).message}`);
     }
@@ -148,6 +160,9 @@ export async function runAnalysis(
     warnings.push(`Ephemeral cleanup failed: ${(err as Error).message}`);
   }
 
+  // 중복 제거 (정적 분석과 세션 비교가 같은 파일을 동시에 미처리할 수 있음)
+  const uniqueUnprocessed = Array.from(new Set(unprocessedFiles));
+
   return {
     mode,
     issues_created: saveResult.created,
@@ -155,5 +170,6 @@ export async function runAnalysis(
     total_issues_found: allIssues.length,
     token_usage: { input: totalInput, output: totalOutput },
     warnings,
+    ...(uniqueUnprocessed.length > 0 ? { unprocessed_files: uniqueUnprocessed } : {}),
   };
 }

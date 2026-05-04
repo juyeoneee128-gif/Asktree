@@ -20,6 +20,11 @@ export interface AnalysisResult {
   issues: DetectedIssue[];
   tokenUsage: { input: number; output: number };
   warnings: string[];
+  /**
+   * 토큰 예산 초과 등으로 분석되지 않은 파일 경로 목록.
+   * static-analyzer의 청크 분할 분기에서만 채워짐. 단일 호출 시 undefined.
+   */
+  unprocessed_files?: string[];
 }
 
 // ─── 보호 규칙 결과 타입 ───
