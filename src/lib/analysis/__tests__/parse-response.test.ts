@@ -3,6 +3,9 @@ import {
   parseAnalysisResponse,
   parseGuidelineResponse,
   applyLevelLimits,
+  getLevelLimits,
+  LEVEL_LIMITS_FULL,
+  LEVEL_LIMITS_PROBLEMS_ONLY,
 } from '../parse-response';
 import type { DetectedIssue } from '../parse-response';
 import type { ClaudeCallResult } from '../claude-client';
@@ -257,6 +260,71 @@ describe('applyLevelLimits', () => {
     const { issues: limited } = applyLevelLimits(issues);
     expect(limited.filter((i) => i.level === 'critical')).toHaveLength(5);
     expect(limited.filter((i) => i.level === 'info')).toHaveLength(3);
+  });
+
+  it('limits 파라미터로 커스텀 상한을 적용할 수 있다', () => {
+    const issues = [
+      ...Array.from({ length: 4 }, (_, i) => makeIssue({ level: 'critical', title: `c-${i}`, confidence: 0.9 - i * 0.1 })),
+      ...Array.from({ length: 2 }, (_, i) => makeIssue({ level: 'info', title: `i-${i}`, confidence: 0.5 })),
+    ];
+    const { issues: limited, truncationWarnings } = applyLevelLimits(
+      issues,
+      LEVEL_LIMITS_PROBLEMS_ONLY
+    );
+    expect(limited.filter((i) => i.level === 'critical')).toHaveLength(3);
+    expect(limited.filter((i) => i.level === 'info')).toHaveLength(0);
+    expect(truncationWarnings.some((w) => w.includes('Truncated 1 critical'))).toBe(true);
+    expect(truncationWarnings.some((w) => w.includes('Truncated 2 info'))).toBe(true);
+  });
+});
+
+describe('getLevelLimits', () => {
+  it('full 모드는 LEVEL_LIMITS_FULL을 반환한다', () => {
+    expect(getLevelLimits('full')).toBe(LEVEL_LIMITS_FULL);
+    expect(LEVEL_LIMITS_FULL).toEqual({ critical: 5, warning: 10, info: 5 });
+  });
+
+  it('problems_only 모드는 LEVEL_LIMITS_PROBLEMS_ONLY를 반환한다', () => {
+    expect(getLevelLimits('problems_only')).toBe(LEVEL_LIMITS_PROBLEMS_ONLY);
+    expect(LEVEL_LIMITS_PROBLEMS_ONLY).toEqual({ critical: 3, warning: 5, info: 0 });
+  });
+});
+
+describe('parseAnalysisResponse — 모드별 상한', () => {
+  it('mode 인자 없이 호출하면 full 모드 상한을 적용한다', () => {
+    const issues = Array.from({ length: 6 }, (_, i) =>
+      fullIssue({ title: `c-${i}`, level: 'critical', confidence: 0.5 + i * 0.05 })
+    );
+    const result = parseAnalysisResponse(mockResult([{ issues }]));
+    expect(result.issues).toHaveLength(5); // full 상한
+  });
+
+  it('problems_only 모드는 critical을 3건으로 제한한다', () => {
+    const issues = Array.from({ length: 5 }, (_, i) =>
+      fullIssue({ title: `c-${i}`, level: 'critical', confidence: 0.5 + i * 0.05 })
+    );
+    const result = parseAnalysisResponse(mockResult([{ issues }]), 'problems_only');
+    expect(result.issues).toHaveLength(3);
+    expect(result.warnings.some((w) => w.includes('Truncated 2 critical'))).toBe(true);
+  });
+
+  it('problems_only 모드는 info를 전부 잘라낸다 (상한 0)', () => {
+    const issues = [
+      fullIssue({ title: 'i-0', level: 'info', confidence: 0.9 }),
+      fullIssue({ title: 'i-1', level: 'info', confidence: 0.5 }),
+    ];
+    const result = parseAnalysisResponse(mockResult([{ issues }]), 'problems_only');
+    expect(result.issues.filter((i) => i.level === 'info')).toHaveLength(0);
+    expect(result.warnings.some((w) => w.includes('Truncated 2 info'))).toBe(true);
+  });
+
+  it('problems_only 모드는 warning을 5건으로 제한한다', () => {
+    const issues = Array.from({ length: 7 }, (_, i) =>
+      fullIssue({ title: `w-${i}`, level: 'warning', confidence: i / 7 })
+    );
+    const result = parseAnalysisResponse(mockResult([{ issues }]), 'problems_only');
+    expect(result.issues).toHaveLength(5);
+    expect(result.warnings.some((w) => w.includes('Truncated 2 warning'))).toBe(true);
   });
 });
 

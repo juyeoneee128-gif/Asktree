@@ -1,4 +1,5 @@
 import type { ClaudeCallResult } from './claude-client';
+import type { AnalysisMode } from './prompts';
 
 // ─── 분석 결과 타입 ───
 
@@ -33,16 +34,34 @@ export interface GeneratedGuideline {
 const VALID_LEVELS = new Set(['critical', 'warning', 'info']);
 const REQUIRED_TEXT_FIELDS = ['title', 'level', 'fact', 'detail', 'fix_command', 'file', 'basis'] as const;
 
-export const LEVEL_LIMITS: Record<DetectedIssue['level'], number> = {
+export type LevelLimits = Record<DetectedIssue['level'], number>;
+
+export const LEVEL_LIMITS_FULL: LevelLimits = {
   critical: 5,
   warning: 10,
   info: 5,
 };
 
+export const LEVEL_LIMITS_PROBLEMS_ONLY: LevelLimits = {
+  critical: 3,
+  warning: 5,
+  info: 0,
+};
+
+/**
+ * 모드별 레벨 상한을 반환합니다.
+ */
+export function getLevelLimits(mode: AnalysisMode): LevelLimits {
+  return mode === 'problems_only' ? LEVEL_LIMITS_PROBLEMS_ONLY : LEVEL_LIMITS_FULL;
+}
+
 /**
  * Claude API 응답에서 DetectedIssue 배열을 추출하고, 레벨별 상한을 적용합니다.
  */
-export function parseAnalysisResponse(result: ClaudeCallResult): AnalysisResult {
+export function parseAnalysisResponse(
+  result: ClaudeCallResult,
+  mode: AnalysisMode = 'full'
+): AnalysisResult {
   const warnings: string[] = [];
   const issues: DetectedIssue[] = [];
 
@@ -71,7 +90,10 @@ export function parseAnalysisResponse(result: ClaudeCallResult): AnalysisResult 
     }
   }
 
-  const { issues: limited, truncationWarnings } = applyLevelLimits(issues);
+  const { issues: limited, truncationWarnings } = applyLevelLimits(
+    issues,
+    getLevelLimits(mode)
+  );
   warnings.push(...truncationWarnings);
 
   return { issues: limited, tokenUsage: result.tokenUsage, warnings };
@@ -155,7 +177,8 @@ function validateIssue(
  * 같은 레벨 내에서는 confidence 내림차순으로 상위 N개를 유지합니다.
  */
 export function applyLevelLimits(
-  issues: DetectedIssue[]
+  issues: DetectedIssue[],
+  limits: LevelLimits = LEVEL_LIMITS_FULL
 ): { issues: DetectedIssue[]; truncationWarnings: string[] } {
   const buckets: Record<DetectedIssue['level'], DetectedIssue[]> = {
     critical: [],
@@ -171,7 +194,7 @@ export function applyLevelLimits(
   const result: DetectedIssue[] = [];
 
   for (const level of ['critical', 'warning', 'info'] as const) {
-    const limit = LEVEL_LIMITS[level];
+    const limit = limits[level];
     const bucket = buckets[level];
 
     if (bucket.length <= limit) {
