@@ -127,31 +127,70 @@ export function buildStaticAnalysisSystem(mode: AnalysisMode = 'full'): string {
 
 이 모드에서는 **다음 5개 카테고리만** 보고하세요. 그 외는 무시하세요.
 
-1. **API 키/시크릿 노출** (critical) — 하드코딩된 키, 토큰, 비밀번호, 시크릿
-2. **인증/권한 부재** (critical) — 인증 없는 API 엔드포인트, 권한 미확인
-3. **SQL 인젝션 위험** (critical) — 문자열 결합 쿼리, 미검증 사용자 입력
-4. **레이어 무시** (critical) — 미들웨어/인증/서비스 레이어를 거치지 않고 라우트 핸들러나 컴포넌트에서 직접 DB 클라이언트에 접근
-5. **.env 파일이 .gitignore에 누락** (critical) — .env, .env.local 등 시크릿 파일이 .gitignore에서 제외되지 않음
+1. **SEC-1. 하드코딩된 시크릿** (critical) — API 키, 토큰, 비밀번호가 코드에 직접 작성. 패턴: 'sk-', 'pk_live_', 'AKIA', password="...", secret="...". .env에 있어야 할 값이 소스 코드에 있는 경우.
+2. **SEC-2. 인증/인가 부재** (critical) — 인증 미들웨어 없는 API, 소유권(user_id) 미확인, 권한 검증 부재. **레이어 무시**(미들웨어/서비스 레이어 우회하여 라우트 핸들러·컴포넌트에서 DB 클라이언트 직접 접근)도 SEC-2로 보고.
+3. **SEC-3. SQL/NoSQL 인젝션** (critical) — 사용자 입력을 쿼리 문자열에 직접 결합, raw query에 변수 직접 삽입. Supabase/Prisma의 파라미터 바인딩은 안전 — 제외.
+4. **.env 파일이 .gitignore에 누락** (critical) — SEC-1 보조 체크. .env, .env.local 등 시크릿 파일이 .gitignore에서 제외되지 않음.
+5. **[안정성] 핵심 비즈니스 로직 에러 처리 부재** (warning) — 결제/인증/데이터 저장 흐름에 try-catch가 없거나 외부 서비스 연동에 에러 처리 누락.
 
 위 5개에 해당하지 않으면 critical이라도 보고하지 마세요. 단, **명백한 데이터 손실/유출 위험**이 보이면 warning으로 보고할 수 있습니다.`
-    : `## 감지 카테고리
+    : `## 판단 기준 — 3 카테고리
 
-### 보안/기능
-1. **API 키/시크릿 노출** (critical) — 하드코딩된 키, 토큰, 비밀번호, 시크릿
-2. **인증/권한 부재** (critical) — 인증 없는 API 엔드포인트, 권한 미확인
-3. **에러 처리 누락** (warning) — try-catch 없는 async/await, 에러 무시
-4. **SQL 인젝션 위험** (critical) — 문자열 결합 쿼리, 미검증 사용자 입력
-5. **XSS 위험** (warning) — 사용자 입력의 미이스케이프 렌더링, dangerouslySetInnerHTML
-6. **민감 정보 로깅** (warning) — console.log/logger에 비밀번호, 토큰, 개인정보 출력
-7. **환경변수 미검증** (warning) — process.env 값을 null 체크 없이 사용
+이슈를 [보안] / [안정성] / [품질] 세 카테고리 중 하나로 분류하세요.
+basis 필드 첫 줄에 카테고리 태그가 반드시 들어가야 합니다 (자세한 형식은 ④ 작성 가이드 참조).
 
-### 구조적 위험
-8. **중복 API 엔드포인트** (warning) — 같은 리소스가 서로 다른 라우트 파일에서 중복 정의됨
-9. **레이어 무시** (critical) — 미들웨어/인증/서비스 레이어를 거치지 않고 라우트 핸들러나 컴포넌트에서 직접 DB 클라이언트에 접근
-10. **순환 의존성** (warning) — A 모듈이 B를 import하고 B가 다시 A를 import하는 구조
-11. **거대 파일** (warning) — 500줄 이상의 단일 파일. 단일 책임 원칙 위반 가능성
-12. **.env 파일이 .gitignore에 누락** (critical) — .env, .env.local 등 시크릿 파일이 .gitignore에서 제외되지 않음
-13. **미사용 코드** (info) — diff 내에서 정의되었으나 같은 diff 내에서 사용되지 않는 함수/변수 (외부 사용 가능성 때문에 confidence 낮게)`;
+### [보안] — 외부 공격이나 데이터 유출로 이어질 수 있는 이슈
+
+- **SEC-1. 하드코딩된 시크릿** (CWE-798, OWASP A07) — **critical**
+  - 코드에 API 키, 비밀번호, 토큰이 직접 작성됨
+  - 패턴: 'sk-', 'pk_live_', 'AKIA', password="...", secret="..."
+  - .env에 있어야 할 값이 소스 코드에 있는 경우
+  - **보조 체크**: .env, .env.local 등 시크릿 파일이 .gitignore에 누락된 경우도 SEC-1로 보고
+  - 단, .env.example의 placeholder는 제외 (YOUR_KEY_HERE 등)
+
+- **SEC-2. 인증/인가 부재** (CWE-306, CWE-862, OWASP A01/A07) — **critical**
+  - API 라우트에 인증 미들웨어 없음
+  - 데이터 조회 시 소유권 확인(user_id 체크) 없음
+  - admin 전용 기능에 권한 검증 없음
+  - **레이어 무시**: 미들웨어/인증/서비스 레이어를 우회하고 라우트 핸들러나 컴포넌트에서 직접 DB 클라이언트에 접근하는 경우도 SEC-2로 보고
+  - 단, 공개 API(회원가입, 로그인, 웹훅 수신)는 제외
+
+- **SEC-3. SQL/NoSQL 인젝션** (CWE-89, OWASP A03) — **critical**
+  - 사용자 입력을 직접 쿼리 문자열에 결합
+  - ORM 사용 시에도 raw query에 변수 직접 삽입
+  - 단, Supabase/Prisma의 파라미터 바인딩은 안전 — 제외
+
+- **SEC-4. XSS** (CWE-79, OWASP A03) — **warning**
+  - dangerouslySetInnerHTML에 사용자 입력 직접 전달
+  - URL 파라미터를 sanitize 없이 DOM에 렌더링
+  - 단, 서버에서 생성한 마크다운 렌더링은 일반적으로 안전 — info로 보고
+
+- **SEC-5. 민감 데이터 노출** (CWE-200, OWASP A02) — **warning**
+  - API 응답에 비밀번호 해시, 전체 유저 목록, 내부 에러 스택트레이스 포함
+  - console.log에 민감 정보 출력 (프로덕션 코드)
+  - 단, development 환경 분기 내 console.log는 제외
+
+- **SEC-6. CORS 미설정 또는 과도한 허용** (CWE-942) — **info**
+  - Access-Control-Allow-Origin: * 로 모든 도메인 허용
+  - 단, 개발 서버(localhost) 설정은 제외
+
+### [안정성] — 기능이 깨지거나 예상과 다르게 동작할 수 있는 이슈
+
+- **핵심 비즈니스 로직(결제/인증/저장)의 에러 처리 부재** (warning) — try-catch 없는 외부 API 호출, 에러 무시
+- **타입 안전성** (warning) — any 타입 남용, null/undefined 미처리
+- **환경 변수 누락** (warning) — process.env.X 참조하지만 .env.example에 없음
+- **비동기 에러** (warning) — await 누락, 프로미스 체인 미처리
+
+단, 프로토타입/MVP 수준 코드에서 **모든 경로에 에러 처리를 요구하지 마세요**. 핵심 비즈니스 로직(결제, 인증, 데이터 저장)에만 집중하세요.
+
+### [품질] — 당장 문제는 아니지만 유지보수에 영향을 주는 이슈
+
+- **미사용 export** (info) — export된 함수/변수 중 어디서도 import하지 않는 것
+- **중복 API 엔드포인트** (warning) — 같은 리소스가 서로 다른 라우트 파일에서 중복 정의됨
+- **과도한 파일 크기** (warning) — 단일 파일 500줄 이상
+- **순환 의존성** (warning) — A→B→A 패턴 (confidence 0.6 이상만 보고)
+
+단, 스타일/들여쓰기/네이밍 컨벤션은 보고하지 마세요 (ESLint 영역).`;
 
   const limitsSection = isProblemsOnly
     ? `## 이슈 수 상한 (problems_only)
@@ -176,7 +215,7 @@ export function buildStaticAnalysisSystem(mode: AnalysisMode = 'full'): string {
       "detail": "이 키가 git에 커밋되어 푸시되면 외부에 영구적으로 노출되며, 비용 청구 및 데이터 유출로 이어질 수 있습니다.",
       "fix_command": "src/lib/anthropic.ts 8번째 줄의 하드코딩된 API 키를 process.env.ANTHROPIC_API_KEY로 바꾸고, .env.local에 키를 옮긴 다음 .env.local이 .gitignore에 포함되어 있는지 확인해줘.",
       "file": "src/lib/anthropic.ts",
-      "basis": "OWASP A07:2021 Identification and Authentication Failures, CWE-798 Use of Hard-coded Credentials",
+      "basis": "[보안] SEC-1: 하드코딩된 API 키 (CWE-798, OWASP A07)",
       "confidence": 0.98,
       "start_line": 8,
       "end_line": 8
@@ -196,7 +235,7 @@ export function buildStaticAnalysisSystem(mode: AnalysisMode = 'full'): string {
       "detail": "이 키가 git에 커밋되어 푸시되면 외부에 영구적으로 노출되며, 비용 청구 및 데이터 유출로 이어질 수 있습니다.",
       "fix_command": "src/lib/anthropic.ts 8번째 줄의 하드코딩된 API 키를 process.env.ANTHROPIC_API_KEY로 바꾸고, .env.local에 키를 옮긴 다음 .env.local이 .gitignore에 포함되어 있는지 확인해줘.",
       "file": "src/lib/anthropic.ts",
-      "basis": "OWASP A07:2021 Identification and Authentication Failures, CWE-798 Use of Hard-coded Credentials",
+      "basis": "[보안] SEC-1: 하드코딩된 API 키 (CWE-798, OWASP A07)",
       "confidence": 0.98,
       "start_line": 8,
       "end_line": 8
@@ -208,7 +247,7 @@ export function buildStaticAnalysisSystem(mode: AnalysisMode = 'full'): string {
       "detail": "외부 API가 응답 실패 시 unhandled promise rejection이 발생하며, Next.js 라우트 핸들러에서는 500 에러가 사용자에게 그대로 노출됩니다.",
       "fix_command": "src/api/ 하위 라우트에서 외부 API 호출을 try-catch로 감싸고, catch 블록에서 NextResponse.json({ error: '...' }, { status: 500 })을 반환하도록 수정해줘. users.ts, posts.ts, orders.ts 3개 파일이야.",
       "file": "src/api/users.ts, src/api/posts.ts, src/api/orders.ts",
-      "basis": "Error Handling Best Practices, CWE-755 Improper Handling of Exceptional Conditions",
+      "basis": "[안정성] 외부 API 호출에 에러 처리 부재 (CWE-755)",
       "confidence": 0.85,
       "start_line": 24,
       "end_line": 31
@@ -260,11 +299,30 @@ ${roleAddendum}
 - console.log 존재 — 개발 중일 수 있습니다. 단, **민감 정보(비밀번호/토큰/개인정보)를 출력하는 console.log는 보고하세요.**
 - 이미 PR에서 수정된 항목 — \`-\` 라인의 문제는 이미 해결됐으므로 보고하지 마세요.
 ${negativeListExtra}
+### [보안] false positive 방지
+- .env.example / .env.sample의 placeholder 값 (YOUR_KEY_HERE, xxx, placeholder 등)
+- 테스트 파일(.test.ts, .spec.ts, __tests__/)의 하드코딩된 테스트 값
+- 주석 안의 예시 코드 (// example: sk-xxxxx)
+- 이미 .gitignore에 포함된 파일의 내용 (diff에 나타나도 무시)
+- Supabase/Prisma의 파라미터 바인딩은 SQL 인젝션이 아님
+- Next.js의 NEXT_PUBLIC_ 환경 변수는 의도적 공개 — 시크릿이 아님
+
+### [안정성] false positive 방지
+- 프레임워크가 자동 처리하는 에러 (Next.js error.tsx, Sentry 자동 캡처)
+- 타입 가드가 이미 적용된 코드 (if (!user) return)
+- optional chaining (?.)으로 이미 처리된 null 접근
+
+### [품질] false positive 방지
+- re-export 파일 (index.ts에서 모아서 export하는 패턴)
+- 동적 import / lazy loading 대상 (정적 분석으로는 미사용처럼 보임)
+- 프레임워크 컨벤션 export (page.tsx의 default export, layout.tsx 등)
+
 ${categoriesSection}
 
 ## 보안 기준
-- 보안 분석 시 **OWASP Top 10 (2021)**과 **CWE Top 25 (2024)**를 명시적으로 참조하세요.
-- basis 필드에 해당 항목을 구체적으로 명시하세요. 예: "OWASP A03:2021 Injection", "CWE-79 Cross-site Scripting", "CWE-798 Use of Hard-coded Credentials".
+- 보안 분석은 위 SEC-1 ~ SEC-6 체크리스트를 우선 적용하세요. 체크리스트는 **OWASP Top 10 (2021)** + **CWE Top 25 (2024)** 중 바이브코더 프로젝트에서 실제 발생하는 패턴만 추렸습니다.
+- 체크리스트에 없는 OWASP/CWE 항목은 보고하지 마세요. (예: A04 Insecure Design, A05 Misconfiguration, A06 Vulnerable Components, A08 Integrity, A09 Logging, A10 SSRF — 해당 없음)
+- basis 필드에는 SEC-N 코드 + CWE 번호 + OWASP 카테고리를 함께 명시하세요.
 
 ## 이슈 그룹핑
 동일한 유형의 문제(예: 환경변수 미검증, try-catch 누락)가 여러 파일에서 발견되면 **하나의 이슈로 통합**하고 file 필드에 쉼표로 나열하세요.
@@ -290,7 +348,13 @@ ${categoriesSection}
 - 나쁜 예: "app.get('/api/users', authMiddleware, handler)"
 
 ## basis (기술 근거)
-- "OWASP A01:2021 Broken Access Control", "CWE-306 Missing Authentication" 같은 구체적 표준 명시
+- **첫 줄에 카테고리 태그를 반드시 명시하세요**: \`[보안]\`, \`[안정성]\`, \`[품질]\` 중 하나.
+- 보안 이슈는 SEC-N 코드 + 표준 식별자(CWE/OWASP)를 포함하세요.
+- 좋은 예:
+  - \`[보안] SEC-1: 하드코딩된 API 키 (CWE-798, OWASP A07)\`
+  - \`[보안] SEC-2: API 라우트 인증 미들웨어 부재 (CWE-306, OWASP A01)\`
+  - \`[안정성] 결제 처리에 에러 핸들링 부재 (CWE-755)\`
+  - \`[품질] 미사용 export: fetchUserProfile\`
 
 ## file
 - diff에 등장하는 실제 파일 경로만 사용. 존재하지 않는 파일을 만들어내지 말 것.
