@@ -1,5 +1,5 @@
 {
-  "version": "2.10",
+  "version": "2.11",
   "children": [
     {
       "type": "frame",
@@ -79715,6 +79715,90 @@
           ]
         }
       ]
+    },
+    {
+      "type": "rectangle",
+      "id": "g1Vvhc",
+      "x": 12433,
+      "y": -3502,
+      "fill": {
+        "type": "image",
+        "enabled": true,
+        "url": "screen-terminal.png",
+        "mode": "fill"
+      },
+      "width": 2232,
+      "height": 1436
+    },
+    {
+      "type": "rectangle",
+      "id": "POLru",
+      "x": 9957,
+      "y": -3502,
+      "fill": {
+        "type": "image",
+        "enabled": true,
+        "url": "screen-session.png",
+        "mode": "fill"
+      },
+      "width": 2232,
+      "height": 1436
+    },
+    {
+      "type": "rectangle",
+      "id": "PUmnO",
+      "x": 7573,
+      "y": -3500,
+      "fill": {
+        "type": "image",
+        "enabled": true,
+        "url": "screen-claude-md.png",
+        "mode": "fill"
+      },
+      "width": 2232,
+      "height": 1436
+    },
+    {
+      "type": "rectangle",
+      "id": "rHtSN",
+      "x": 5057,
+      "y": -3502,
+      "fill": {
+        "type": "image",
+        "enabled": true,
+        "url": "screen-status.png",
+        "mode": "fill"
+      },
+      "width": 2232,
+      "height": 1436
+    },
+    {
+      "type": "rectangle",
+      "id": "VrRMm",
+      "x": 2645,
+      "y": -3500,
+      "fill": {
+        "type": "image",
+        "enabled": true,
+        "url": "screen-issues.png",
+        "mode": "fill"
+      },
+      "width": 2234,
+      "height": 1434
+    },
+    {
+      "type": "rectangle",
+      "id": "iLpJ5",
+      "x": -118,
+      "y": -3500,
+      "fill": {
+        "type": "image",
+        "enabled": true,
+        "url": "screen-home.png",
+        "mode": "fill"
+      },
+      "width": 2562,
+      "height": 1654
     }
   ],
   "variables": {
