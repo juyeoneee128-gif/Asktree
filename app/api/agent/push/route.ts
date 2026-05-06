@@ -15,6 +15,19 @@ import { runAnalysis } from '@/src/lib/analysis/run-analysis';
 import { assessFeatures } from '@/src/lib/specs/assess-features';
 import { syncAgentDocs } from '@/src/lib/specs/sync-docs';
 import { extractFeaturesForDocument } from '@/src/lib/specs/extract-features';
+import { countDiffLines } from '@/src/lib/agent/diff-stats';
+import { hasUserApiKey, getUserApiKey } from '@/src/lib/credits/byok';
+import { deductCredit, getCreditInfo } from '@/src/lib/credits/deduct';
+import {
+  checkDailyLimit,
+  incrementDailyCount,
+  getDailyCount,
+} from '@/src/lib/credits/daily-limit';
+import {
+  CREDIT_COSTS,
+  DAILY_PUSH_LIMIT,
+  SMALL_DIFF_THRESHOLD,
+} from '@/src/lib/credits/constants';
 
 // extract API rate limit 방어용 동시 호출 상한 (사용자 지시: 3개씩 chunking)
 const EXTRACT_CONCURRENCY = 3;
@@ -153,20 +166,77 @@ export async function POST(request: Request) {
     console.error('[push] Agent status update failed:', (err as Error).message);
   }
 
-  // 10. 자동 파이프라인 트리거 (비동기, 응답 차단 안 함)
-  //   순서: docs sync → 변경된 doc 병렬 extract → runAnalysis(problems_only)
-  //         → assessFeatures(features 1건 이상 시).
-  //   docs sync는 diffs 없어도 실행 가능 (사용자가 docs만 편집한 세션).
-  //   자동 분석은 problems_only 모드, 수동 재분석은 full.
+  // 10. 크레딧 가드 + 자동 파이프라인 트리거
+  //   분석 흐름:
+  //     diff 0줄        → ESLint만 LLM 호출 없이 실행, 미차감
+  //     일일 상한 초과  → 분석 skip
+  //     크레딧 부족     → 분석 skip (BYOK 제외)
+  //     small diff      → Haiku 경량 분석
+  //     normal          → Sonnet 정상 분석
+  //   docs sync는 모든 케이스에서 실행 (BYOK이면 유저 키, 아니면 무료 — D 결정)
   const hasDiffs = !!(payload.session_data.diffs && payload.session_data.diffs.length > 0);
   const hasDocs = !!(
     payload.session_data.docs_files && payload.session_data.docs_files.length > 0
   );
 
+  const diffLines = countDiffLines(payload.session_data.diffs);
+  const isByok = await hasUserApiKey(authResult.user_id);
+  const byokKey = isByok ? await getUserApiKey(authResult.user_id) : null;
+
+  // 분석 skip 사유 결정 (우선순위: no_diff > daily_limit > insufficient_credits)
+  let analysisSkipped: 'no_diff' | 'daily_limit' | 'insufficient_credits' | null = null;
+  let creditsUsed = 0;
+
+  if (hasDiffs) {
+    if (diffLines === 0) {
+      analysisSkipped = 'no_diff';
+    } else if (await checkDailyLimit(payload.project_id, DAILY_PUSH_LIMIT)) {
+      analysisSkipped = 'daily_limit';
+    } else if (!isByok) {
+      try {
+        const info = await getCreditInfo(authResult.user_id);
+        if (info.remaining < CREDIT_COSTS.PUSH_ANALYSIS) {
+          analysisSkipped = 'insufficient_credits';
+        }
+      } catch (err) {
+        console.error('[push] credit check failed:', (err as Error).message);
+        analysisSkipped = 'insufficient_credits';
+      }
+    }
+
+    // 가드 통과 → daily count 증가 + 크레딧 차감 (선차감)
+    if (!analysisSkipped) {
+      try {
+        await incrementDailyCount(payload.project_id);
+      } catch (err) {
+        console.error('[push] daily count increment failed:', (err as Error).message);
+      }
+
+      if (!isByok) {
+        try {
+          await deductCredit(authResult.user_id, CREDIT_COSTS.PUSH_ANALYSIS, {
+            reason: 'push_analysis',
+            projectId: payload.project_id,
+            sessionId: saved.id,
+          });
+          creditsUsed = CREDIT_COSTS.PUSH_ANALYSIS;
+        } catch (err) {
+          console.error('[push] credit deduction failed:', (err as Error).message);
+          analysisSkipped = 'insufficient_credits';
+        }
+      }
+    }
+  }
+
+  // 자동 파이프라인 (비동기 — 응답 차단 안 함)
   if (hasDiffs || hasDocs) {
+    const useLightModel = diffLines > 0 && diffLines < SMALL_DIFF_THRESHOLD;
+    const apiKey = byokKey ?? undefined;
+    const runMainAnalysis = hasDiffs && !analysisSkipped;
+
     (async () => {
       try {
-        // 10a. docs sync + 변경된 doc만 병렬 extract (동시 EXTRACT_CONCURRENCY건)
+        // 10a. docs sync + 변경된 doc 병렬 extract
         if (hasDocs) {
           try {
             const sync = await syncAgentDocs(
@@ -211,12 +281,21 @@ export async function POST(request: Request) {
           }
         }
 
-        // 10b. 분석 (diff 있을 때만)
-        if (hasDiffs) {
-          await runAnalysis(payload.project_id, saved.id, 'problems_only');
+        // 10b. 분석 — 가드 통과한 경우만 (no_diff 케이스도 ESLint는 runAnalysis 내부에서 처리)
+        if (runMainAnalysis) {
+          await runAnalysis(payload.project_id, saved.id, 'problems_only', {
+            useLightModel,
+            apiKey,
+          });
+        } else if (hasDiffs && analysisSkipped === 'no_diff') {
+          // diff 0줄 → ESLint만으로 정적 분석 실행 (LLM 호출 없음, 무료)
+          await runAnalysis(payload.project_id, saved.id, 'problems_only', {
+            useLightModel: true, // 안전 기본값 (LLM 호출은 안 일어남)
+            apiKey,
+          });
         }
 
-        // 10c. assess (features 1건 이상 — extract 결과 + 기존 manual 모두 포함)
+        // 10c. assess (features 1건 이상)
         const adminClient = createClient<Database>(
           process.env.NEXT_PUBLIC_SUPABASE_URL!,
           process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -245,7 +324,17 @@ export async function POST(request: Request) {
     console.error('[push] Ephemeral cleanup failed:', err.message);
   });
 
-  // 12. 응답
+  // 12. 응답 — credits 정보 포함
+  let creditsRemaining = 0;
+  try {
+    const info = await getCreditInfo(authResult.user_id);
+    creditsRemaining = info.remaining;
+  } catch (err) {
+    console.error('[push] credits info failed:', (err as Error).message);
+  }
+
+  const dailyCount = await getDailyCount(payload.project_id).catch(() => 0);
+
   return NextResponse.json(
     {
       success: true,
@@ -256,6 +345,14 @@ export async function POST(request: Request) {
         files_changed_count: parsed.changed_files,
         warnings: parsed.warnings,
       },
+      credits: {
+        used: creditsUsed,
+        remaining: creditsRemaining,
+        is_byok: isByok,
+        daily_count: dailyCount,
+        daily_limit: DAILY_PUSH_LIMIT,
+      },
+      analysis_skipped: analysisSkipped,
     },
     { status: 201 }
   );

@@ -34,6 +34,13 @@ interface DiffItem {
   diff_content: string;
 }
 
+export interface RunAnalysisOptions {
+  /** true면 정적 분석에 Haiku 모델 사용 (small diff용). 세션 비교는 항상 Haiku. */
+  useLightModel?: boolean;
+  /** BYOK API 키. 있으면 모든 분석 호출이 유저 키로 실행됨. */
+  apiKey?: string;
+}
+
 /**
  * 전체 분석 파이프라인을 실행합니다.
  *
@@ -50,7 +57,8 @@ interface DiffItem {
 export async function runAnalysis(
   projectId: string,
   sessionId: string,
-  mode: AnalysisMode = 'full'
+  mode: AnalysisMode = 'full',
+  options: RunAnalysisOptions = {}
 ): Promise<AnalysisRunResult> {
   const warnings: string[] = [];
   let totalInput = 0;
@@ -116,7 +124,8 @@ export async function runAnalysis(
           diffs,
           eslintResults,
         },
-        mode
+        mode,
+        { useLightModel: options.useLightModel, apiKey: options.apiKey }
       );
 
       allIssues.push(...staticResult.issues);
@@ -142,7 +151,8 @@ export async function runAnalysis(
           currentSessionId: sessionId,
           currentDiffs: diffs,
         },
-        mode
+        mode,
+        { apiKey: options.apiKey }
       );
 
       allIssues.push(...compResult.issues);
