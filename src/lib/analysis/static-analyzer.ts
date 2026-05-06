@@ -13,6 +13,7 @@ import {
   convertEslintToIssues,
 } from './eslint-results';
 import type { EslintIssueRaw } from '../agent/validate-payload';
+import { applyMaskingToDiffs } from '../security/mask-sensitive';
 
 export interface StaticAnalysisOptions {
   /** true면 Haiku로 호출 (small diff). 기본 false → Sonnet. */
@@ -82,13 +83,23 @@ export async function analyzeStatic(
   mode: AnalysisMode = 'full',
   options: StaticAnalysisOptions = {}
 ): Promise<AnalysisResult> {
+  // 보안: LLM 전송 직전 민감 데이터 마스킹.
+  // DB 저장(ephemeral_data)에는 원본이 유지됨 — 분석 재실행은 동일 입력에 마스킹 재적용.
+  const { diffs: maskedDiffs, maskCount } = applyMaskingToDiffs(input.diffs);
+  const maskingWarnings: string[] =
+    maskCount > 0
+      ? [`Security: masked ${maskCount} sensitive value(s) before LLM call`]
+      : [];
+  const maskedInput: StaticAnalysisInput = { ...input, diffs: maskedDiffs };
+
   // ESLint 처리물(LLM 컨텍스트 + 직접 변환 이슈)을 한 번만 빌드.
   // diff가 비어있어도 ESLint 결과만 있으면 그것만으로 결과 반환.
-  const eslintRaw = input.eslintResults ?? [];
+  // ESLint 결과는 파일 경로 + 룰 메시지만 포함 (원본 코드 없음) → 마스킹 불필요.
+  const eslintRaw = maskedInput.eslintResults ?? [];
   const eslintContext = buildEslintContextSection(eslintRaw);
   const eslintIssues = convertEslintToIssues(eslintRaw);
 
-  if (input.diffs.length === 0) {
+  if (maskedInput.diffs.length === 0) {
     if (eslintIssues.length === 0) {
       return { issues: [], tokenUsage: { input: 0, output: 0 }, warnings: ['No diffs to analyze'] };
     }
@@ -106,8 +117,8 @@ export async function analyzeStatic(
     };
   }
 
-  // diff를 하나의 문자열로 합쳐서 크기 확인
-  const combinedDiff = formatDiffs(input.diffs);
+  // diff를 하나의 문자열로 합쳐서 크기 확인 (마스킹된 입력 기준)
+  const combinedDiff = formatDiffs(maskedInput.diffs);
   const estimatedTokenCount = estimateTokens(combinedDiff);
 
   // SOFT 이하 → 단일 호출
@@ -115,14 +126,14 @@ export async function analyzeStatic(
   // HARD 초과 → 청크 분할
   let llmResult: AnalysisResult;
   if (estimatedTokenCount <= TOKEN_BUDGET.DIFF_HARD_LIMIT) {
-    llmResult = await callStaticAnalysis(input, combinedDiff, mode, eslintContext, options);
+    llmResult = await callStaticAnalysis(maskedInput, combinedDiff, mode, eslintContext, options);
     if (estimatedTokenCount > TOKEN_BUDGET.DIFF_SOFT_LIMIT) {
       llmResult.warnings.unshift(
         `Large diff: ~${estimatedTokenCount} tokens (soft limit ${TOKEN_BUDGET.DIFF_SOFT_LIMIT}); single-call analysis may have reduced quality`
       );
     }
   } else {
-    llmResult = await callStaticAnalysisSplit(input, mode, eslintContext, options);
+    llmResult = await callStaticAnalysisSplit(maskedInput, mode, eslintContext, options);
   }
 
   // LLM이 ESLint 출처를 다시 보고한 경우 드롭 (basis가 ESLint:로 시작)
@@ -138,7 +149,7 @@ export async function analyzeStatic(
     getLevelLimits(mode)
   );
 
-  const finalWarnings = [...llmResult.warnings, ...truncationWarnings];
+  const finalWarnings = [...maskingWarnings, ...llmResult.warnings, ...truncationWarnings];
   if (eslintRaw.length > 0) {
     finalWarnings.unshift(
       `ESLint integration: ${eslintRaw.length} raw findings, ${eslintIssues.length} auto-converted to issues`

@@ -10,6 +10,10 @@ import {
 import type { AnalysisMode } from './prompts';
 import { parseAnalysisResponse } from './parse-response';
 import type { AnalysisResult } from './parse-response';
+import {
+  applyMaskingToDiffs,
+  maskSensitiveData,
+} from '../security/mask-sensitive';
 
 function createAdminClient() {
   return createClient<Database>(
@@ -86,18 +90,26 @@ export async function analyzeSessionDiff(
     return { issues: [], tokenUsage: { input: 0, output: 0 }, warnings: ['No diffs for overlapping files'] };
   }
 
+  // 보안: LLM 전송 직전 민감 데이터 마스킹 (diff + summary 둘 다)
+  const { diffs: maskedDiffs, maskCount: diffMaskCount } =
+    applyMaskingToDiffs(overlappingDiffs);
+  const prevSummaryMasked = maskSensitiveData(prevSession.summary ?? '');
+  const currentSummaryMasked = maskSensitiveData(currentSession.summary ?? '');
+  const totalMaskCount =
+    diffMaskCount + prevSummaryMasked.maskCount + currentSummaryMasked.maskCount;
+
   // Claude API 호출
-  const diffsText = overlappingDiffs
+  const diffsText = maskedDiffs
     .map((d) => `--- ${d.file_path} ---\n${d.diff_content}`)
     .join('\n\n');
 
   const userMessage = buildSessionComparisonMessage({
     prevSessionTitle: prevSession.title,
     prevFilesChanged: prevFiles,
-    prevSummary: prevSession.summary ?? '',
+    prevSummary: prevSummaryMasked.masked,
     currentSessionTitle: currentSession.title,
     currentFilesChanged: currentFiles,
-    currentSummary: currentSession.summary ?? '',
+    currentSummary: currentSummaryMasked.masked,
     currentDiffs: diffsText,
   });
 
@@ -109,7 +121,13 @@ export async function analyzeSessionDiff(
     apiKey: options.apiKey,
   });
 
-  return parseAnalysisResponse(result, mode);
+  const parsed = parseAnalysisResponse(result, mode);
+  if (totalMaskCount > 0) {
+    parsed.warnings.unshift(
+      `Security: masked ${totalMaskCount} sensitive value(s) before LLM call`
+    );
+  }
+  return parsed;
 }
 
 // ─── 헬퍼 ───
