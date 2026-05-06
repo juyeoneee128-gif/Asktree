@@ -1,6 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '../supabase/types';
 
+type CreditReason = 'push_analysis' | 'manual_analysis' | 'signup_bonus' | 'admin_grant';
+
 function createAdminClient() {
   return createClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -42,14 +44,23 @@ export async function checkCredits(userId: string, required: number = 1): Promis
   return user.credits;
 }
 
+interface DeductOptions {
+  reason: CreditReason;
+  projectId?: string;
+  sessionId?: string;
+}
+
 /**
- * 크레딧을 차감합니다.
- * 분석 완료 후 호출합니다.
+ * 크레딧을 차감하고 credit_usage에 이력을 기록합니다.
+ * 잔여 부족 시 InsufficientCreditsError throw.
  */
-export async function deductCredit(userId: string, amount: number = 1): Promise<{ remaining: number }> {
+export async function deductCredit(
+  userId: string,
+  amount: number,
+  options: DeductOptions
+): Promise<{ remaining: number }> {
   const supabase = createAdminClient();
 
-  // 현재 크레딧 조회
   const { data: user, error: fetchError } = await supabase
     .from('users')
     .select('credits, used_this_month')
@@ -60,7 +71,11 @@ export async function deductCredit(userId: string, amount: number = 1): Promise<
     throw new Error(`User not found: ${userId}`);
   }
 
-  const newCredits = Math.max(0, user.credits - amount);
+  if (user.credits < amount) {
+    throw new InsufficientCreditsError(user.credits);
+  }
+
+  const newCredits = user.credits - amount;
   const newUsed = user.used_this_month + amount;
 
   const { error: updateError } = await supabase
@@ -73,6 +88,20 @@ export async function deductCredit(userId: string, amount: number = 1): Promise<
 
   if (updateError) {
     throw new Error(`Failed to deduct credit: ${updateError.message}`);
+  }
+
+  // 이력 기록 (실패해도 차감은 유효 — 감사용)
+  const { error: usageError } = await supabase.from('credit_usage').insert({
+    user_id: userId,
+    project_id: options.projectId ?? null,
+    session_id: options.sessionId ?? null,
+    amount: -amount,
+    balance_after: newCredits,
+    reason: options.reason,
+  });
+
+  if (usageError) {
+    console.error('[deductCredit] credit_usage insert failed:', usageError.message);
   }
 
   return { remaining: newCredits };
