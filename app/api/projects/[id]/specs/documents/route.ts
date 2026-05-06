@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/src/lib/supabase/server';
 import { extractAndSaveFeatures } from '@/src/lib/specs/extract-features';
+import { assessFeatures } from '@/src/lib/specs/assess-features';
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -77,6 +78,17 @@ export async function POST(request: Request, { params }: Params) {
 
     if (result.error) {
       return NextResponse.json({ error: result.error }, { status: 500 });
+    }
+
+    // 이번 업로드로 features가 추출됐으면 PRD 대조를 fire-and-forget으로 트리거.
+    // 자동 호출이라 유저 통제 불가 → 무료 (assessFeatures 자체에 크레딧 차감 없음).
+    if (result.features_count > 0) {
+      assessFeatures(projectId).catch((err) => {
+        console.error(
+          '[specs/documents POST] assessFeatures failed:',
+          (err as Error).message
+        );
+      });
     }
 
     return NextResponse.json({
