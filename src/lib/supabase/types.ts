@@ -352,6 +352,50 @@ export interface Database {
         };
         Relationships: [];
       };
+      credit_usage: {
+        Row: {
+          id: string;
+          user_id: string;
+          project_id: string | null;
+          session_id: string | null;
+          amount: number;
+          balance_after: number;
+          reason: 'push_analysis' | 'manual_analysis' | 'signup_bonus' | 'admin_grant';
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          user_id: string;
+          project_id?: string | null;
+          session_id?: string | null;
+          amount: number;
+          balance_after: number;
+          reason: 'push_analysis' | 'manual_analysis' | 'signup_bonus' | 'admin_grant';
+          created_at?: string;
+        };
+        Update: {
+          amount?: number;
+          balance_after?: number;
+          reason?: 'push_analysis' | 'manual_analysis' | 'signup_bonus' | 'admin_grant';
+        };
+        Relationships: [];
+      };
+      daily_analysis_count: {
+        Row: {
+          project_id: string;
+          date: string;
+          count: number;
+        };
+        Insert: {
+          project_id: string;
+          date?: string;
+          count?: number;
+        };
+        Update: {
+          count?: number;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;
