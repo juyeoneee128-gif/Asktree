@@ -7,8 +7,10 @@ const RETRY_BASE_MS = 1000;
 /**
  * 서버와 동일한 방식으로 HMAC-SHA256 서명을 계산합니다.
  * 입력: `{timestamp}.{body}` — timestamp 변조 차단.
+ *
+ * test/agent-server-roundtrip.test.ts에서 import해서 서버 검증 로직과 일치 확인.
  */
-function signPayload(timestamp, body, signingKey) {
+export function signPayload(timestamp, body, signingKey) {
   return createHmac('sha256', signingKey).update(`${timestamp}.${body}`).digest('hex');
 }
 
