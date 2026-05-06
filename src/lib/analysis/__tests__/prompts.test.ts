@@ -141,20 +141,16 @@ describe('buildStaticAnalysisSystem — 모드 분기', () => {
     expect(buildStaticAnalysisSystem()).toBe(buildStaticAnalysisSystem('full'));
   });
 
-  it('full 모드는 13개 카테고리를 모두 포함한다', () => {
+  it('full 모드는 [보안]/[안정성]/[품질] 3 카테고리 헤더를 모두 포함한다', () => {
     const prompt = buildStaticAnalysisSystem('full');
-    expect(prompt).toContain('API 키/시크릿 노출');
-    expect(prompt).toContain('인증/권한 부재');
-    expect(prompt).toContain('에러 처리 누락');
-    expect(prompt).toContain('SQL 인젝션 위험');
-    expect(prompt).toContain('XSS 위험');
-    expect(prompt).toContain('민감 정보 로깅');
-    expect(prompt).toContain('환경변수 미검증');
+    expect(prompt).toContain('### [보안]');
+    expect(prompt).toContain('### [안정성]');
+    expect(prompt).toContain('### [품질]');
+    // 안정성/품질 대표 항목
+    expect(prompt).toContain('핵심 비즈니스 로직');
+    expect(prompt).toContain('미사용 export');
     expect(prompt).toContain('중복 API 엔드포인트');
-    expect(prompt).toContain('레이어 무시');
     expect(prompt).toContain('순환 의존성');
-    expect(prompt).toContain('거대 파일');
-    expect(prompt).toContain('미사용 코드');
   });
 
   it('full 모드는 critical 5/warning 10/info 5 상한을 명시한다', () => {
@@ -177,23 +173,23 @@ describe('buildStaticAnalysisSystem — 모드 분기', () => {
     expect(prompt).toContain('info: 최대 0건');
   });
 
-  it('problems_only 모드는 critical 5개 카테고리만 카테고리 선언으로 포함', () => {
+  it('problems_only 모드는 SEC-1/SEC-2/SEC-3 + .env gitignore + 핵심 안정성 5개만 포함', () => {
     const prompt = buildStaticAnalysisSystem('problems_only');
-    // 포함되는 critical 카테고리 선언 — "**이름** (critical)" 형식
-    expect(prompt).toContain('**API 키/시크릿 노출** (critical)');
-    expect(prompt).toContain('**인증/권한 부재** (critical)');
-    expect(prompt).toContain('**SQL 인젝션 위험** (critical)');
-    expect(prompt).toContain('**레이어 무시** (critical)');
+    // 포함되는 5 카테고리 — SEC 코드 또는 안정성 태그로 식별
+    expect(prompt).toContain('**SEC-1. 하드코딩된 시크릿** (critical)');
+    expect(prompt).toContain('**SEC-2. 인증/인가 부재** (critical)');
+    expect(prompt).toContain('**SEC-3. SQL/NoSQL 인젝션** (critical)');
     expect(prompt).toContain('**.env 파일이 .gitignore에 누락** (critical)');
-    // 카테고리 선언으로 등장하지 않아야 하는 warning/info 항목
-    expect(prompt).not.toContain('**에러 처리 누락** (warning)');
-    expect(prompt).not.toContain('**XSS 위험** (warning)');
-    expect(prompt).not.toContain('**민감 정보 로깅** (warning)');
-    expect(prompt).not.toContain('**환경변수 미검증** (warning)');
-    expect(prompt).not.toContain('**중복 API 엔드포인트** (warning)');
-    expect(prompt).not.toContain('**순환 의존성** (warning)');
-    expect(prompt).not.toContain('**거대 파일** (warning)');
-    expect(prompt).not.toContain('**미사용 코드** (info)');
+    expect(prompt).toContain('**[안정성] 핵심 비즈니스 로직 에러 처리 부재** (warning)');
+    // problems_only에는 SEC-4~6 / 품질 카테고리가 카테고리 선언으로 등장하지 않음
+    expect(prompt).not.toContain('**SEC-4.');
+    expect(prompt).not.toContain('**SEC-5.');
+    expect(prompt).not.toContain('**SEC-6.');
+    expect(prompt).not.toContain('### [품질] —');
+    expect(prompt).not.toContain('**중복 API 엔드포인트**');
+    expect(prompt).not.toContain('**과도한 파일 크기**');
+    expect(prompt).not.toContain('**순환 의존성**');
+    expect(prompt).not.toContain('**미사용 export**');
   });
 
   it('problems_only 모드는 추가 negative list 항목을 포함한다', () => {
@@ -207,6 +203,115 @@ describe('buildStaticAnalysisSystem — 모드 분기', () => {
     expect(buildStaticAnalysisSystem('full')).not.toBe(
       buildStaticAnalysisSystem('problems_only')
     );
+  });
+});
+
+describe('buildStaticAnalysisSystem — SEC-1~6 보안 체크리스트', () => {
+  it('full 모드에 SEC-1 ~ SEC-6 코드와 CWE 번호가 모두 등장한다', () => {
+    const prompt = buildStaticAnalysisSystem('full');
+    // SEC 코드 6개
+    expect(prompt).toContain('SEC-1');
+    expect(prompt).toContain('SEC-2');
+    expect(prompt).toContain('SEC-3');
+    expect(prompt).toContain('SEC-4');
+    expect(prompt).toContain('SEC-5');
+    expect(prompt).toContain('SEC-6');
+    // 각 SEC의 CWE 번호 매핑
+    expect(prompt).toContain('CWE-798'); // SEC-1
+    expect(prompt).toContain('CWE-306'); // SEC-2
+    expect(prompt).toContain('CWE-862'); // SEC-2
+    expect(prompt).toContain('CWE-89'); // SEC-3
+    expect(prompt).toContain('CWE-79'); // SEC-4
+    expect(prompt).toContain('CWE-200'); // SEC-5
+    expect(prompt).toContain('CWE-942'); // SEC-6
+  });
+
+  it('SEC-3는 Supabase/Prisma 파라미터 바인딩 제외 단서를 포함한다', () => {
+    const prompt = buildStaticAnalysisSystem('full');
+    expect(prompt).toContain('Supabase');
+    expect(prompt).toContain('Prisma');
+    expect(prompt).toContain('파라미터 바인딩');
+  });
+
+  it('SEC-1은 .env.example placeholder 제외 단서를 포함한다', () => {
+    const prompt = buildStaticAnalysisSystem('full');
+    expect(prompt).toContain('.env.example');
+    expect(prompt).toContain('placeholder');
+    expect(prompt).toContain('YOUR_KEY_HERE');
+  });
+
+  it('SEC-6 CORS는 info 레벨로 단순화되어 있다', () => {
+    const prompt = buildStaticAnalysisSystem('full');
+    expect(prompt).toMatch(/SEC-6\.[\s\S]*CWE-942[\s\S]*\*\*info\*\*/);
+  });
+});
+
+describe('buildStaticAnalysisSystem — Negative list 확장', () => {
+  it('보안 false positive 그룹을 포함한다', () => {
+    const prompt = buildStaticAnalysisSystem('full');
+    expect(prompt).toContain('### [보안] false positive 방지');
+    expect(prompt).toContain('NEXT_PUBLIC_');
+    expect(prompt).toContain('.env.example');
+    expect(prompt).toContain('__tests__/');
+    expect(prompt).toContain('.gitignore에 포함된 파일');
+  });
+
+  it('안정성 false positive 그룹을 포함한다', () => {
+    const prompt = buildStaticAnalysisSystem('full');
+    expect(prompt).toContain('### [안정성] false positive 방지');
+    expect(prompt).toContain('error.tsx');
+    expect(prompt).toContain('Sentry');
+    expect(prompt).toContain('타입 가드');
+    expect(prompt).toContain('optional chaining');
+  });
+
+  it('품질 false positive 그룹을 포함한다', () => {
+    const prompt = buildStaticAnalysisSystem('full');
+    expect(prompt).toContain('### [품질] false positive 방지');
+    expect(prompt).toContain('re-export');
+    expect(prompt).toContain('동적 import');
+    expect(prompt).toContain('page.tsx');
+  });
+});
+
+describe('buildStaticAnalysisSystem — basis 카테고리 태그', () => {
+  it('④ 작성 가이드 basis 절에 [보안]/[안정성]/[품질] 태그 + "첫 줄" 지시가 등장한다', () => {
+    const prompt = buildStaticAnalysisSystem('full');
+    expect(prompt).toContain('첫 줄에 카테고리 태그');
+    expect(prompt).toContain('[보안]');
+    expect(prompt).toContain('[안정성]');
+    expect(prompt).toContain('[품질]');
+  });
+
+  it('⑥ Example output의 basis 값이 카테고리 태그로 시작한다', () => {
+    const prompt = buildStaticAnalysisSystem('full');
+    // critical 예시 — [보안] 태그
+    expect(prompt).toContain('"basis": "[보안] SEC-1: 하드코딩된 API 키 (CWE-798, OWASP A07)"');
+    // warning 예시 — [안정성] 태그
+    expect(prompt).toContain('"basis": "[안정성] 외부 API 호출에 에러 처리 부재 (CWE-755)"');
+  });
+
+  it('problems_only Example output의 basis도 카테고리 태그로 시작한다', () => {
+    const prompt = buildStaticAnalysisSystem('problems_only');
+    expect(prompt).toContain('"basis": "[보안] SEC-1: 하드코딩된 API 키 (CWE-798, OWASP A07)"');
+  });
+});
+
+describe('buildSessionComparisonSystem — 보안 변경 감지', () => {
+  it('full 모드 ③에 보안 변경 감지 블록이 등장한다', () => {
+    const prompt = buildSessionComparisonSystem('full');
+    expect(prompt).toContain('## 보안 변경 감지');
+    expect(prompt).toContain('인증 미들웨어');
+    expect(prompt).toMatch(/인증 미들웨어[\s\S]*C 티어/);
+    expect(prompt).toMatch(/하드코딩[\s\S]*C 티어/);
+    expect(prompt).toMatch(/CORS[\s\S]*\*[\s\S]*B 티어/);
+    expect(prompt).toContain('[보안 회귀]');
+  });
+
+  it('problems_only 모드에는 보안 변경 감지 블록이 등장하지 않는다 (간소화 유지)', () => {
+    const prompt = buildSessionComparisonSystem('problems_only');
+    expect(prompt).not.toContain('## 보안 변경 감지');
+    expect(prompt).not.toContain('[보안 회귀]');
   });
 });
 
