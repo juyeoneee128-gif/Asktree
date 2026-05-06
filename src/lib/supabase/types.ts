@@ -50,6 +50,7 @@ export interface Database {
           agent_last_seen: string | null;
           agent_path: string | null;
           agent_token: string | null;
+          signing_key: string;
           created_at: string;
           updated_at: string;
         };
@@ -61,6 +62,7 @@ export interface Database {
           agent_last_seen?: string | null;
           agent_path?: string | null;
           agent_token?: string | null;
+          signing_key?: string;
         };
         Update: {
           name?: string;
