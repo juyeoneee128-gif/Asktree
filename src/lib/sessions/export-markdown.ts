@@ -84,7 +84,7 @@ function formatThousands(n: number): string {
 export function slugifyTitle(title: string): string {
   const sliced = title.slice(0, 30);
   return sliced
-    .replace(/[^a-zA-Z0-9가-힣\s]/g, '')
+    .replace(/[^a-zA-Z0-9가-힣\s-]/g, '')
     .trim()
     .replace(/\s+/g, '-')
     .replace(/-+/g, '-')
