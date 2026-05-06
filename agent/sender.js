@@ -1,8 +1,18 @@
-const AGENT_VERSION = '0.3.0';
+import { createHmac } from 'node:crypto';
+
+const AGENT_VERSION = '0.4.0';
 const MAX_RETRIES = 3;
 const RETRY_BASE_MS = 1000;
 
-export async function pushSession({ apiUrl, token, projectId, sessionResult }) {
+/**
+ * 서버와 동일한 방식으로 HMAC-SHA256 서명을 계산합니다.
+ * 입력: `{timestamp}.{body}` — timestamp 변조 차단.
+ */
+function signPayload(timestamp, body, signingKey) {
+  return createHmac('sha256', signingKey).update(`${timestamp}.${body}`).digest('hex');
+}
+
+export async function pushSession({ apiUrl, token, signingKey, projectId, sessionResult }) {
   const payload = {
     project_id: projectId,
     session_data: {
@@ -21,15 +31,26 @@ export async function pushSession({ apiUrl, token, projectId, sessionResult }) {
   const body = JSON.stringify(payload);
   const endpoint = `${apiUrl.replace(/\/$/, '')}/api/agent/push`;
 
+  // signing_key가 있으면 HMAC 서명 헤더 추가. 없으면 0.3.x 호환 모드.
+  const buildHeaders = () => {
+    const headers = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    };
+    if (signingKey) {
+      const timestamp = Date.now().toString();
+      headers['X-CodeSasu-Timestamp'] = timestamp;
+      headers['X-CodeSasu-Signature'] = signPayload(timestamp, body, signingKey);
+    }
+    return headers;
+  };
+
   let lastError;
   for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
     try {
       const res = await fetch(endpoint, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: buildHeaders(),
         body,
       });
 

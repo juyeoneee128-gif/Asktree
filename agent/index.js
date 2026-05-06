@@ -34,6 +34,7 @@ async function loadConfig() {
 
   const projectId = merged.CODESASU_PROJECT_ID;
   const token = merged.CODESASU_AGENT_TOKEN;
+  const signingKey = merged.CODESASU_SIGNING_KEY || '';
   const apiUrl = merged.CODESASU_API_URL || DEFAULT_API_URL;
   const idleTimeoutMs = parseInt(merged.CODESASU_IDLE_TIMEOUT_MS || '', 10) || DEFAULT_IDLE_TIMEOUT_MS;
   const claudeDir = merged.CODESASU_CLAUDE_DIR || DEFAULT_CLAUDE_DIR;
@@ -47,7 +48,7 @@ async function loadConfig() {
     );
   }
 
-  return { projectId, token, apiUrl, idleTimeoutMs, claudeDir };
+  return { projectId, token, signingKey, apiUrl, idleTimeoutMs, claudeDir };
 }
 
 function parseEnvFile(text) {
@@ -74,6 +75,7 @@ function pickEnv() {
   const keys = [
     'CODESASU_PROJECT_ID',
     'CODESASU_AGENT_TOKEN',
+    'CODESASU_SIGNING_KEY',
     'CODESASU_API_URL',
     'CODESASU_IDLE_TIMEOUT_MS',
     'CODESASU_CLAUDE_DIR',
@@ -114,8 +116,14 @@ async function main() {
   }
 
   await logger.info(
-    `CodeSasu agent starting — project=${config.projectId} api=${config.apiUrl} idle=${config.idleTimeoutMs}ms`
+    `CodeSasu agent starting — project=${config.projectId} api=${config.apiUrl} idle=${config.idleTimeoutMs}ms hmac=${config.signingKey ? 'on' : 'off (legacy)'}`
   );
+
+  if (!config.signingKey) {
+    await logger.warn(
+      'CODESASU_SIGNING_KEY missing — payload signature disabled. Re-run setup-codesasu.sh with --signing-key for HMAC protection.'
+    );
+  }
 
   const state = new State(STATE_PATH);
   await state.load();
@@ -140,6 +148,7 @@ async function main() {
       const pushResult = await pushSession({
         apiUrl: config.apiUrl,
         token: config.token,
+        signingKey: config.signingKey,
         projectId: config.projectId,
         sessionResult: result,
       });

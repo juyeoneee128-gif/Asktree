@@ -34,24 +34,28 @@ SYSTEMD_UNIT="$HOME/.config/systemd/user/codesasu-agent.service"
 # ─── 인자 파싱 ────────────────────────────────────────
 PROJECT_ID="${CODESASU_PROJECT_ID:-}"
 AGENT_TOKEN="${CODESASU_AGENT_TOKEN:-}"
+SIGNING_KEY="${CODESASU_SIGNING_KEY:-}"
 API_URL="${CODESASU_API_URL:-http://localhost:3000}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --project-id) PROJECT_ID="$2"; shift 2 ;;
-    --token)      AGENT_TOKEN="$2"; shift 2 ;;
-    --api-url)    API_URL="$2"; shift 2 ;;
+    --project-id)  PROJECT_ID="$2"; shift 2 ;;
+    --token)       AGENT_TOKEN="$2"; shift 2 ;;
+    --signing-key) SIGNING_KEY="$2"; shift 2 ;;
+    --api-url)     API_URL="$2"; shift 2 ;;
     -h|--help)
       cat <<EOF
 CodeSasu 에이전트 설치 스크립트
 
 사용법:
-  $0 --project-id <uuid> --token <agent-token> [--api-url <url>]
+  $0 --project-id <uuid> --token <agent-token> --signing-key <hex64> [--api-url <url>]
 
 옵션:
-  --project-id  CodeSasu 프로젝트 UUID (필수)
-  --token       에이전트 토큰 (필수)
-  --api-url     CodeSasu API URL (기본: http://localhost:3000)
+  --project-id   CodeSasu 프로젝트 UUID (필수)
+  --token        에이전트 토큰 (필수)
+  --signing-key  HMAC 서명 키 (hex 64자, 권장 — 0.4.0+)
+                 미지정 시 0.3.x 호환 모드로 동작 (서명 미적용)
+  --api-url      CodeSasu API URL (기본: http://localhost:3000)
 EOF
       exit 0 ;;
     *) err "Unknown option: $1"; exit 1 ;;
@@ -66,8 +70,16 @@ if [[ -z "$AGENT_TOKEN" ]]; then
   read -rsp "CODESASU_AGENT_TOKEN: " AGENT_TOKEN
   echo
 fi
+if [[ -z "$SIGNING_KEY" ]]; then
+  read -rsp "CODESASU_SIGNING_KEY (Enter to skip — legacy 0.3.x mode): " SIGNING_KEY
+  echo
+fi
 if [[ -z "$PROJECT_ID" || -z "$AGENT_TOKEN" ]]; then
   err "PROJECT_ID와 TOKEN은 필수입니다."
+  exit 1
+fi
+if [[ -n "$SIGNING_KEY" && ! "$SIGNING_KEY" =~ ^[a-f0-9]{64}$ ]]; then
+  err "SIGNING_KEY는 hex 64자여야 합니다 (현재: ${#SIGNING_KEY}자)"
   exit 1
 fi
 
@@ -111,10 +123,14 @@ cat > "$CONFIG_PATH" <<EOF
 # CodeSasu 에이전트 설정 (자동 생성)
 CODESASU_PROJECT_ID=$PROJECT_ID
 CODESASU_AGENT_TOKEN=$AGENT_TOKEN
+CODESASU_SIGNING_KEY=$SIGNING_KEY
 CODESASU_API_URL=$API_URL
 EOF
 chmod 600 "$CONFIG_PATH"
 ok "config.env 작성 완료 (권한 600)"
+if [[ -z "$SIGNING_KEY" ]]; then
+  warn "signing_key 미지정 — payload HMAC 서명이 비활성화됩니다 (legacy 0.3.x 호환)."
+fi
 
 # ─── 서비스 등록 ─────────────────────────────────────
 NODE_BIN="$(command -v node)"
