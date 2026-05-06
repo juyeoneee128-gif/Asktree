@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '../supabase/types';
 import { callClaude } from './claude-client';
+import { ANALYSIS_MODELS } from './models';
 import {
   ANALYSIS_RESULT_TOOL,
   buildSessionComparisonSystem,
@@ -28,13 +29,19 @@ interface SessionComparisonInput {
   currentDiffs: DiffItem[];
 }
 
+interface SessionComparisonOptions {
+  /** BYOK 키 — 있으면 유저 키로 호출, 크레딧 미차감. */
+  apiKey?: string;
+}
+
 /**
  * 현재 세션과 이전 세션을 비교 분석합니다.
  * 이전 세션이 없거나 겹치는 파일이 없으면 빈 결과를 반환합니다.
  */
 export async function analyzeSessionDiff(
   input: SessionComparisonInput,
-  mode: AnalysisMode = 'full'
+  mode: AnalysisMode = 'full',
+  options: SessionComparisonOptions = {}
 ): Promise<AnalysisResult> {
   const supabase = createAdminClient();
 
@@ -98,6 +105,8 @@ export async function analyzeSessionDiff(
     systemPrompt: buildSessionComparisonSystem(mode),
     userMessage,
     tools: [ANALYSIS_RESULT_TOOL],
+    model: ANALYSIS_MODELS.SESSION_COMPARISON,
+    apiKey: options.apiKey,
   });
 
   return parseAnalysisResponse(result, mode);

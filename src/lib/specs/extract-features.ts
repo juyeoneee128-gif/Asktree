@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '../supabase/types';
 import { callClaude } from '../analysis/claude-client';
+import { ANALYSIS_MODELS } from '../analysis/models';
 import {
   EXTRACT_FEATURES_TOOL,
   EXTRACT_FEATURES_SYSTEM,
@@ -76,6 +77,7 @@ export async function extractFeaturesForDocument(
     userMessage,
     tools: [EXTRACT_FEATURES_TOOL],
     maxTokens: 4096,
+    model: ANALYSIS_MODELS.EXTRACT_FEATURES,
   });
 
   // 2. 응답 파싱

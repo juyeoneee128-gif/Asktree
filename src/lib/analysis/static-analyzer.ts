@@ -1,4 +1,5 @@
 import { callClaude, estimateTokens } from './claude-client';
+import { ANALYSIS_MODELS } from './models';
 import {
   ANALYSIS_RESULT_TOOL,
   buildStaticAnalysisSystem,
@@ -12,6 +13,13 @@ import {
   convertEslintToIssues,
 } from './eslint-results';
 import type { EslintIssueRaw } from '../agent/validate-payload';
+
+export interface StaticAnalysisOptions {
+  /** true면 Haiku로 호출 (small diff). 기본 false → Sonnet. */
+  useLightModel?: boolean;
+  /** BYOK 키. */
+  apiKey?: string;
+}
 
 /**
  * 토큰 예산 구조 — Anthropic Sonnet의 큰 컨텍스트 윈도우 환경에 맞춤.
@@ -65,10 +73,14 @@ interface StaticAnalysisInput {
 /**
  * 정적 분석을 수행합니다.
  * diff 크기에 따라 단일 호출 또는 분할 호출합니다.
+ *
+ * options.useLightModel=true면 Haiku로, 아니면 Sonnet.
+ * options.apiKey 있으면 유저 BYOK 키로 호출.
  */
 export async function analyzeStatic(
   input: StaticAnalysisInput,
-  mode: AnalysisMode = 'full'
+  mode: AnalysisMode = 'full',
+  options: StaticAnalysisOptions = {}
 ): Promise<AnalysisResult> {
   // ESLint 처리물(LLM 컨텍스트 + 직접 변환 이슈)을 한 번만 빌드.
   // diff가 비어있어도 ESLint 결과만 있으면 그것만으로 결과 반환.
@@ -103,14 +115,14 @@ export async function analyzeStatic(
   // HARD 초과 → 청크 분할
   let llmResult: AnalysisResult;
   if (estimatedTokenCount <= TOKEN_BUDGET.DIFF_HARD_LIMIT) {
-    llmResult = await callStaticAnalysis(input, combinedDiff, mode, eslintContext);
+    llmResult = await callStaticAnalysis(input, combinedDiff, mode, eslintContext, options);
     if (estimatedTokenCount > TOKEN_BUDGET.DIFF_SOFT_LIMIT) {
       llmResult.warnings.unshift(
         `Large diff: ~${estimatedTokenCount} tokens (soft limit ${TOKEN_BUDGET.DIFF_SOFT_LIMIT}); single-call analysis may have reduced quality`
       );
     }
   } else {
-    llmResult = await callStaticAnalysisSplit(input, mode, eslintContext);
+    llmResult = await callStaticAnalysisSplit(input, mode, eslintContext, options);
   }
 
   // LLM이 ESLint 출처를 다시 보고한 경우 드롭 (basis가 ESLint:로 시작)
@@ -148,7 +160,8 @@ async function callStaticAnalysis(
   input: StaticAnalysisInput,
   diffsText: string,
   mode: AnalysisMode,
-  eslintContext: string
+  eslintContext: string,
+  options: StaticAnalysisOptions
 ): Promise<AnalysisResult> {
   let userMessage = buildStaticAnalysisMessage({
     projectName: input.projectName,
@@ -160,11 +173,17 @@ async function callStaticAnalysis(
     userMessage = `${userMessage}\n\n${eslintContext}`;
   }
 
+  const model = options.useLightModel
+    ? ANALYSIS_MODELS.RUN_ANALYSIS_LIGHT
+    : ANALYSIS_MODELS.RUN_ANALYSIS_FULL;
+
   const result = await callClaude({
     systemPrompt: buildStaticAnalysisSystem(mode),
     userMessage,
     tools: [ANALYSIS_RESULT_TOOL],
     maxTokens: getOutputBudget(mode),
+    model,
+    apiKey: options.apiKey,
   });
 
   return parseAnalysisResponse(result, mode);
@@ -176,7 +195,8 @@ async function callStaticAnalysis(
 async function callStaticAnalysisSplit(
   input: StaticAnalysisInput,
   mode: AnalysisMode,
-  eslintContext: string
+  eslintContext: string,
+  options: StaticAnalysisOptions
 ): Promise<AnalysisResult> {
   // 경로 기반 우선순위로 정렬 (보안/API 라우트 등 중요 파일을 먼저 분석)
   const sorted = [...input.diffs].sort((a, b) => {
@@ -211,7 +231,8 @@ async function callStaticAnalysisSplit(
       },
       chunkDiffText,
       mode,
-      eslintContext
+      eslintContext,
+      options
     );
 
     allIssues.push(...result.issues);

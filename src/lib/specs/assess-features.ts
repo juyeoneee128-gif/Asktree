@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '../supabase/types';
 import { callClaude } from '../analysis/claude-client';
+import { ANALYSIS_MODELS } from '../analysis/models';
 import {
   ASSESS_FEATURES_TOOL,
   ASSESS_FEATURES_SYSTEM,
@@ -82,6 +83,7 @@ export async function assessFeatures(projectId: string): Promise<AssessResult> {
     userMessage,
     tools: [ASSESS_FEATURES_TOOL],
     maxTokens: 4096,
+    model: ANALYSIS_MODELS.ASSESS_FEATURES,
   });
 
   // 4. 응답 파싱 + UPDATE
