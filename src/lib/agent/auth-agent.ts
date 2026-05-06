@@ -2,12 +2,14 @@ import { createClient } from '@supabase/supabase-js';
 import type { Database } from '../supabase/types';
 
 /**
- * 에이전트 토큰을 검증하고 해당 project_id + user_id를 반환합니다.
+ * 에이전트 토큰을 검증하고 해당 project_id + user_id + signing_key를 반환합니다.
  * service_role 키로 RLS를 우회합니다.
+ *
+ * signing_key는 HMAC payload 서명 검증에 사용 (012 마이그레이션 이후 모든 프로젝트가 보유).
  */
 export async function verifyAgentToken(
   token: string
-): Promise<{ project_id: string; user_id: string } | null> {
+): Promise<{ project_id: string; user_id: string; signing_key: string } | null> {
   const supabaseAdmin = createClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -15,13 +17,17 @@ export async function verifyAgentToken(
 
   const { data, error } = await supabaseAdmin
     .from('projects')
-    .select('id, user_id')
+    .select('id, user_id, signing_key')
     .eq('agent_token', token)
     .single();
 
   if (error || !data) return null;
 
-  return { project_id: data.id, user_id: data.user_id };
+  return {
+    project_id: data.id,
+    user_id: data.user_id,
+    signing_key: data.signing_key,
+  };
 }
 
 /**

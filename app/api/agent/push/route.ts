@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '@/src/lib/supabase/types';
 import { extractBearerToken, verifyAgentToken } from '@/src/lib/agent/auth-agent';
+import { verifyHmacSignature } from '@/src/lib/agent/verify-signature';
 import { validatePayload, validatePayloadSize, MAX_PAYLOAD_SIZE } from '@/src/lib/agent/validate-payload';
 import { parseSession } from '@/src/lib/agent/parse-session';
 import { saveSession, updateAgentStatus, mergeChangedFiles } from '@/src/lib/agent/save-session';
@@ -99,6 +100,39 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: 'Agent token does not match project_id' },
       { status: 403 }
+    );
+  }
+
+  // 5.5. HMAC 서명 검증 (에이전트 0.4.0+).
+  //   - 둘 다 있음 → 검증, 실패 시 401
+  //   - 둘 다 없음 → 경고 로그 + 통과 (0.3.x 하위 호환)
+  //   - 하나만 있음 → 400 (malformed)
+  const sigHeader = request.headers.get('x-codesasu-signature');
+  const tsHeader = request.headers.get('x-codesasu-timestamp');
+  let signatureVerified = false;
+
+  if (sigHeader && tsHeader) {
+    const result = verifyHmacSignature(
+      rawBody,
+      sigHeader,
+      tsHeader,
+      authResult.signing_key
+    );
+    if (!result.valid) {
+      return NextResponse.json(
+        { error: 'Invalid signature', reason: result.reason },
+        { status: 401 }
+      );
+    }
+    signatureVerified = true;
+  } else if (sigHeader || tsHeader) {
+    return NextResponse.json(
+      { error: 'Malformed signature: both X-CodeSasu-Signature and X-CodeSasu-Timestamp required' },
+      { status: 400 }
+    );
+  } else {
+    console.warn(
+      `[push] HMAC headers missing — agent_version=${payload.metadata.agent_version} project=${payload.project_id} (legacy 0.3.x compatibility)`
     );
   }
 
@@ -353,6 +387,9 @@ export async function POST(request: Request) {
         daily_limit: DAILY_PUSH_LIMIT,
       },
       analysis_skipped: analysisSkipped,
+      security: {
+        signature_verified: signatureVerified,
+      },
     },
     { status: 201 }
   );
