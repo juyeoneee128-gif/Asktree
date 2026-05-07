@@ -274,26 +274,80 @@ describe('buildStaticAnalysisSystem — Negative list 확장', () => {
   });
 });
 
-describe('buildStaticAnalysisSystem — basis 카테고리 태그', () => {
-  it('④ 작성 가이드 basis 절에 [보안]/[안정성]/[품질] 태그 + "첫 줄" 지시가 등장한다', () => {
+describe('buildStaticAnalysisSystem — basis 카테고리 + 구간 태그', () => {
+  it('④ 작성 가이드 basis 절에 [카테고리] [구간] 형식 + 카테고리 태그 3종이 등장한다', () => {
     const prompt = buildStaticAnalysisSystem('full');
-    expect(prompt).toContain('첫 줄에 카테고리 태그');
+    expect(prompt).toContain('[카테고리] [구간]');
     expect(prompt).toContain('[보안]');
     expect(prompt).toContain('[안정성]');
     expect(prompt).toContain('[품질]');
   });
 
-  it('⑥ Example output의 basis 값이 카테고리 태그로 시작한다', () => {
+  it('④ 작성 가이드 basis 절에 6개 구간 태그 규칙이 모두 정의된다', () => {
     const prompt = buildStaticAnalysisSystem('full');
-    // critical 예시 — [보안] 태그
-    expect(prompt).toContain('"basis": "[보안] SEC-1: 하드코딩된 API 키 (CWE-798, OWASP A07)"');
-    // warning 예시 — [안정성] 태그
-    expect(prompt).toContain('"basis": "[안정성] 외부 API 호출에 에러 처리 부재 (CWE-755)"');
+    expect(prompt).toContain('[API]');
+    expect(prompt).toContain('[FE]');
+    expect(prompt).toContain('[DB]');
+    expect(prompt).toContain('[LIB]');
+    expect(prompt).toContain('[CONFIG]');
+    expect(prompt).toContain('[AGENT]');
+    // 각 구간의 경로 매핑 단서
+    expect(prompt).toContain('app/api/');
+    expect(prompt).toContain('src/components/');
+    expect(prompt).toContain('src/lib/');
+    expect(prompt).toContain('supabase/');
+    expect(prompt).toContain('agent/');
   });
 
-  it('problems_only Example output의 basis도 카테고리 태그로 시작한다', () => {
+  it('⑥ Example output의 basis 값이 [카테고리] [구간] 형식으로 시작한다', () => {
+    const prompt = buildStaticAnalysisSystem('full');
+    // critical 예시 — [보안] [LIB] 태그 (src/lib/anthropic.ts)
+    expect(prompt).toContain('"basis": "[보안] [LIB] SEC-1: 하드코딩된 API 키 (CWE-798, OWASP A07)"');
+    // warning 예시 — [안정성] [API] 태그 (app/api/.../route.ts)
+    expect(prompt).toContain('"basis": "[안정성] [API] 외부 API 호출에 에러 처리 부재 (CWE-755)"');
+  });
+
+  it('problems_only Example output의 basis도 [카테고리] [구간] 형식으로 시작한다', () => {
     const prompt = buildStaticAnalysisSystem('problems_only');
-    expect(prompt).toContain('"basis": "[보안] SEC-1: 하드코딩된 API 키 (CWE-798, OWASP A07)"');
+    expect(prompt).toContain('"basis": "[보안] [LIB] SEC-1: 하드코딩된 API 키 (CWE-798, OWASP A07)"');
+  });
+});
+
+describe('buildStaticAnalysisSystem — fix_command 4줄 구조', () => {
+  it('④ 작성 가이드 fix_command 절에 4행 구조 + 키워드가 모두 등장한다', () => {
+    const prompt = buildStaticAnalysisSystem('full');
+    expect(prompt).toContain('4줄 구조');
+    expect(prompt).toContain('[현재 상태]');
+    expect(prompt).toContain('[문제]');
+    expect(prompt).toContain('[되는 것]');
+    expect(prompt).toContain('[수정 방법]');
+    // 4행은 "~해줘" 체로 끝나야 한다는 지시
+    expect(prompt).toContain('"~해줘" 체');
+  });
+
+  it('④ fix_command 좋은 예 블록에 4행 키워드가 순서대로 등장한다', () => {
+    const prompt = buildStaticAnalysisSystem('full');
+    expect(prompt).toMatch(
+      /\[현재 상태\][\s\S]*\[문제\][\s\S]*\[되는 것\][\s\S]*\[수정 방법\][\s\S]*해줘/
+    );
+  });
+
+  it('⑥ full 모드 Example output의 fix_command 값에 4행 키워드가 모두 등장한다', () => {
+    const prompt = buildStaticAnalysisSystem('full');
+    // JSON-escaped \n으로 4행이 한 문자열에 들어감
+    expect(prompt).toContain('"fix_command": "[현재 상태]');
+    expect(prompt).toContain('\\n[문제]');
+    expect(prompt).toContain('\\n[되는 것]');
+    expect(prompt).toContain('\\n[수정 방법]');
+    // 4행은 "~해줘"로 끝남
+    expect(prompt).toMatch(/\[수정 방법\][^"]*해줘"/);
+  });
+
+  it('⑥ problems_only Example output의 fix_command도 4행 구조를 따른다', () => {
+    const prompt = buildStaticAnalysisSystem('problems_only');
+    expect(prompt).toContain('"fix_command": "[현재 상태]');
+    expect(prompt).toContain('\\n[수정 방법]');
+    expect(prompt).toMatch(/\[수정 방법\][^"]*해줘"/);
   });
 });
 
@@ -446,5 +500,25 @@ describe('GUIDELINE_GENERATION_SYSTEM', () => {
   it('가이드라인 프롬프트에 작성 가이드가 포함된다', () => {
     expect(GUIDELINE_GENERATION_SYSTEM).toContain('명령형 문체');
     expect(GUIDELINE_GENERATION_SYSTEM).toContain('하지 마라');
+  });
+
+  it('좋은 예 / 나쁜 예 블록이 포함된다', () => {
+    expect(GUIDELINE_GENERATION_SYSTEM).toContain('좋은 예');
+    expect(GUIDELINE_GENERATION_SYSTEM).toContain('나쁜 예');
+    // 좋은 예 — 구체적 파일/경로 + 금지 행위 명시
+    expect(GUIDELINE_GENERATION_SYSTEM).toContain('@stripe/stripe-js');
+    expect(GUIDELINE_GENERATION_SYSTEM).toContain('ENABLE ROW LEVEL SECURITY');
+    expect(GUIDELINE_GENERATION_SYSTEM).toContain('NEXT_PUBLIC_');
+    // 나쁜 예 — 모호함 사례
+    expect(GUIDELINE_GENERATION_SYSTEM).toContain('보안에 주의한다');
+    expect(GUIDELINE_GENERATION_SYSTEM).toContain('기준 불명확');
+  });
+
+  it('규칙 작성 원칙 4개 항목이 포함된다', () => {
+    expect(GUIDELINE_GENERATION_SYSTEM).toContain('규칙 작성 원칙');
+    expect(GUIDELINE_GENERATION_SYSTEM).toContain('보호 대상 파일/경로');
+    expect(GUIDELINE_GENERATION_SYSTEM).toContain('금지 행위를 구체적으로');
+    expect(GUIDELINE_GENERATION_SYSTEM).toContain('허용 예외');
+    expect(GUIDELINE_GENERATION_SYSTEM).toContain('이유를 한 줄');
   });
 });
