@@ -19,6 +19,7 @@ export interface AnalysisRunResult {
   mode: AnalysisMode;
   issues_created: number;
   issues_redetected: number;
+  issues_auto_resolved: number;
   total_issues_found: number;
   token_usage: { input: number; output: number };
   warnings: string[];
@@ -113,8 +114,9 @@ export async function runAnalysis(
   // 2. 정적 분석
   const allIssues: DetectedIssue[] = [];
   const unprocessedFiles: string[] = [];
+  const analysisRan = diffs.length > 0 || eslintResults.length > 0;
 
-  if (diffs.length > 0 || eslintResults.length > 0) {
+  if (analysisRan) {
     try {
       const staticResult = await analyzeStatic(
         {
@@ -167,8 +169,11 @@ export async function runAnalysis(
     }
   }
 
-  // 4. 이슈 저장
-  const saveResult = await saveDetectedIssues(projectId, sessionId, allIssues);
+  // 4. 이슈 저장 (mode + analysisRan 전달 → full + 분석 실행 시 auto_resolve)
+  const saveResult = await saveDetectedIssues(projectId, sessionId, allIssues, {
+    mode,
+    analysisRan,
+  });
   warnings.push(...saveResult.warnings);
 
   // 5. ephemeral 삭제 (분석 완료)
@@ -185,6 +190,7 @@ export async function runAnalysis(
     mode,
     issues_created: saveResult.created,
     issues_redetected: saveResult.redetected,
+    issues_auto_resolved: saveResult.auto_resolved,
     total_issues_found: allIssues.length,
     token_usage: { input: totalInput, output: totalOutput },
     warnings,

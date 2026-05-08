@@ -130,7 +130,7 @@ export interface Database {
           session_id: string | null;
           title: string;
           level: 'critical' | 'warning' | 'info';
-          status: 'unconfirmed' | 'confirmed' | 'resolved';
+          status: 'unconfirmed' | 'confirmed' | 'resolved' | 'auto_resolved';
           fact: string;
           detail: string;
           fix_command: string;
@@ -151,7 +151,7 @@ export interface Database {
           session_id?: string | null;
           title: string;
           level: 'critical' | 'warning' | 'info';
-          status?: 'unconfirmed' | 'confirmed' | 'resolved';
+          status?: 'unconfirmed' | 'confirmed' | 'resolved' | 'auto_resolved';
           fact?: string;
           detail?: string;
           fix_command?: string;
@@ -168,7 +168,7 @@ export interface Database {
         Update: {
           title?: string;
           level?: 'critical' | 'warning' | 'info';
-          status?: 'unconfirmed' | 'confirmed' | 'resolved';
+          status?: 'unconfirmed' | 'confirmed' | 'resolved' | 'auto_resolved';
           fact?: string;
           detail?: string;
           fix_command?: string;

@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from '../supabase/types';
 import type { DetectedIssue } from './parse-response';
+import type { AnalysisMode } from './prompts';
 
 function createAdminClient() {
   return createClient<Database>(
@@ -12,42 +13,50 @@ function createAdminClient() {
 export interface SaveIssuesResult {
   created: number;
   redetected: number;
+  auto_resolved: number;
   warnings: string[];
+}
+
+export interface SaveIssuesOptions {
+  /** 분석 모드. 'full'에서만 auto_resolve 실행. */
+  mode: AnalysisMode;
+  /** 정적 분석/세션 비교가 실제로 실행됐는지. false면 auto_resolve 미실행. */
+  analysisRan: boolean;
 }
 
 /**
  * 감지된 이슈를 DB에 저장합니다.
- * 기존 이슈와 (file + title 키워드)가 매칭되면 재감지(is_redetected) 처리합니다.
+ * - 기존 이슈와 (file + title 키워드)가 매칭되면 재감지(is_redetected) 처리
+ * - full 모드 + analysisRan일 때, 재감지 안 된 unconfirmed 이슈는 auto_resolved로 전환
  */
 export async function saveDetectedIssues(
   projectId: string,
   sessionId: string,
-  issues: DetectedIssue[]
+  issues: DetectedIssue[],
+  options: SaveIssuesOptions
 ): Promise<SaveIssuesResult> {
-  if (issues.length === 0) {
-    return { created: 0, redetected: 0, warnings: [] };
-  }
-
   const supabase = createAdminClient();
   const warnings: string[] = [];
   let created = 0;
   let redetected = 0;
+  let autoResolved = 0;
 
-  // 기존 미해결 이슈 조회 (resolved 제외)
+  // 기존 미해결 + auto_resolved 조회 (resolved 제외)
+  // auto_resolved도 포함 → 재감지되면 unconfirmed + is_redetected=true로 자연 복원
   const { data: existingIssues } = await supabase
     .from('issues')
     .select('id, title, file, status')
     .eq('project_id', projectId)
-    .in('status', ['unconfirmed', 'confirmed']);
+    .in('status', ['unconfirmed', 'confirmed', 'auto_resolved']);
 
   const existing = existingIssues ?? [];
+  const matchedIds = new Set<string>();
 
   for (const issue of issues) {
-    // 재감지 매칭: 같은 file + title 키워드 유사
     const match = findMatchingIssue(existing, issue);
 
     if (match) {
-      // 재감지: status → unconfirmed, is_redetected = true, 내용 갱신
+      matchedIds.add(match.id);
       const { error } = await supabase
         .from('issues')
         .update({
@@ -71,7 +80,6 @@ export async function saveDetectedIssues(
         redetected++;
       }
     } else {
-      // 신규 이슈 INSERT
       const { error } = await supabase.from('issues').insert({
         project_id: projectId,
         session_id: sessionId,
@@ -98,7 +106,28 @@ export async function saveDetectedIssues(
     }
   }
 
-  return { created, redetected, warnings };
+  // auto_resolve: full 모드 + 분석 실제 실행됐을 때만.
+  // 재감지 안 된 unconfirmed 이슈 → auto_resolved (confirmed/auto_resolved는 그대로)
+  if (options.mode === 'full' && options.analysisRan) {
+    const candidates = existing.filter(
+      (e) => e.status === 'unconfirmed' && !matchedIds.has(e.id)
+    );
+
+    for (const candidate of candidates) {
+      const { error } = await supabase
+        .from('issues')
+        .update({ status: 'auto_resolved' } as any)
+        .eq('id', candidate.id);
+
+      if (error) {
+        warnings.push(`Failed to auto-resolve issue ${candidate.id}: ${error.message}`);
+      } else {
+        autoResolved++;
+      }
+    }
+  }
+
+  return { created, redetected, auto_resolved: autoResolved, warnings };
 }
 
 // ─── 재감지 매칭 ───
