@@ -172,6 +172,28 @@ describe('saveDetectedIssues — auto_resolve', () => {
     expect(restoreCall!.patch.is_redetected).toBe(true);
   });
 
+  it('confirmed 이슈가 다시 감지되면 unconfirmed + is_redetected=true 복원', async () => {
+    existingFetch.mockResolvedValue({
+      data: [{ id: 'i1', file: 'src/a.ts', title: 'API 키 노출', status: 'confirmed' }],
+      error: null,
+    });
+
+    const newIssues = [makeIssue({ title: 'API 키 노출', file: 'src/a.ts' })];
+
+    const result = await saveDetectedIssues('p1', 's1', newIssues, {
+      mode: 'full',
+      analysisRan: true,
+    });
+
+    expect(result.redetected).toBe(1);
+
+    const restoreCall = updates.find((u) => u.id === 'i1');
+    expect(restoreCall).toBeDefined();
+    expect(restoreCall!.patch.status).toBe('unconfirmed');
+    expect(restoreCall!.patch.is_redetected).toBe(true);
+    expect(restoreCall!.patch.confirmed_at).toBeNull();
+  });
+
   it('confirmed 이슈는 auto_resolve 대상이 아님', async () => {
     existingFetch.mockResolvedValue({
       data: [
