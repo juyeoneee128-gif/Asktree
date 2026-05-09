@@ -81,7 +81,7 @@ describe('saveDetectedIssues — auto_resolve', () => {
     expect(autoResolveCall).toBeDefined();
   });
 
-  it('problems_only 모드: auto_resolve 미실행 (재감지만 처리)', async () => {
+  it('problems_only + 이슈 파일이 diff에 포함 + 재감지 안 됨 → auto_resolved', async () => {
     existingFetch.mockResolvedValue({
       data: [
         { id: 'i1', file: 'src/a.ts', title: 'API 키 노출', status: 'unconfirmed' },
@@ -90,19 +90,49 @@ describe('saveDetectedIssues — auto_resolve', () => {
       error: null,
     });
 
+    // i1만 재감지, i2는 사라짐. 하지만 i2 파일(src/b.ts)도 diff에 포함됨 → 분석됐는데 재감지 안 됨
     const newIssues = [makeIssue({ title: 'API 키 노출', file: 'src/a.ts' })];
 
     const result = await saveDetectedIssues('p1', 's1', newIssues, {
       mode: 'problems_only',
       analysisRan: true,
+      diffFiles: ['src/a.ts', 'src/b.ts'],
+    });
+
+    expect(result.redetected).toBe(1);
+    expect(result.auto_resolved).toBe(1);
+
+    // i2가 auto_resolved로 전환
+    const autoResolveCall = updates.find(
+      (u) => u.id === 'i2' && u.patch.status === 'auto_resolved'
+    );
+    expect(autoResolveCall).toBeDefined();
+  });
+
+  it('problems_only + 이슈 파일이 diff에 미포함 → 상태 변경 없음', async () => {
+    existingFetch.mockResolvedValue({
+      data: [
+        { id: 'i1', file: 'src/a.ts', title: 'API 키 노출', status: 'unconfirmed' },
+        { id: 'i2', file: 'src/b.ts', title: '에러 처리 누락', status: 'unconfirmed' },
+      ],
+      error: null,
+    });
+
+    // i1 파일만 diff에 포함, 재감지됨. i2는 diff에 없음 → 분석되지 않았으므로 건드리지 않음
+    const newIssues = [makeIssue({ title: 'API 키 노출', file: 'src/a.ts' })];
+
+    const result = await saveDetectedIssues('p1', 's1', newIssues, {
+      mode: 'problems_only',
+      analysisRan: true,
+      diffFiles: ['src/a.ts'],
     });
 
     expect(result.redetected).toBe(1);
     expect(result.auto_resolved).toBe(0);
 
-    // i2에 auto_resolved 업데이트가 가지 않아야 함
-    const autoResolveCall = updates.find((u) => u.patch.status === 'auto_resolved');
-    expect(autoResolveCall).toBeUndefined();
+    // i2는 diff에 없으니 어떤 업데이트도 가지 않아야 함
+    const i2Update = updates.find((u) => u.id === 'i2');
+    expect(i2Update).toBeUndefined();
   });
 
   it('analysisRan=false: auto_resolve 미실행 (분석 자체가 스킵된 push)', async () => {

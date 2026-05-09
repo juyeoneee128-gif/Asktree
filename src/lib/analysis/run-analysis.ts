@@ -169,10 +169,13 @@ export async function runAnalysis(
     }
   }
 
-  // 4. 이슈 저장 (mode + analysisRan 전달 → full + 분석 실행 시 auto_resolve)
+  // 4. 이슈 저장 (mode + analysisRan + diffFiles 전달)
+  //    diffFiles에 포함된 파일의 unconfirmed 이슈만 auto_resolve 대상 → problems_only에서도 동작
+  const diffFiles = diffs.map((d) => d.file_path);
   const saveResult = await saveDetectedIssues(projectId, sessionId, allIssues, {
     mode,
     analysisRan,
+    diffFiles,
   });
   warnings.push(...saveResult.warnings);
 

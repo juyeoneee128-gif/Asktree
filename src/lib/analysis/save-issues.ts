@@ -18,16 +18,23 @@ export interface SaveIssuesResult {
 }
 
 export interface SaveIssuesOptions {
-  /** 분석 모드. 'full'에서만 auto_resolve 실행. */
+  /** 분석 모드. (auto_resolve 게이트는 더 이상 모드에 의존하지 않음 — diffFiles로 판정) */
   mode: AnalysisMode;
   /** 정적 분석/세션 비교가 실제로 실행됐는지. false면 auto_resolve 미실행. */
   analysisRan: boolean;
+  /**
+   * 이번 분석에 포함된 diff 파일 경로 목록.
+   * 정의되면: 이 목록에 있는 파일의 unconfirmed 이슈만 auto_resolve 대상.
+   * undefined면: 모든 파일을 대상으로 함 (구버전 호환).
+   */
+  diffFiles?: string[];
 }
 
 /**
  * 감지된 이슈를 DB에 저장합니다.
  * - 기존 이슈와 (file + title 키워드)가 매칭되면 재감지(is_redetected) 처리
- * - full 모드 + analysisRan일 때, 재감지 안 된 unconfirmed 이슈는 auto_resolved로 전환
+ * - analysisRan일 때, 재감지 안 된 unconfirmed 이슈 중 diffFiles에 포함된 파일의 이슈는
+ *   auto_resolved로 전환 (diff에 없는 파일은 분석되지 않았으므로 건드리지 않음)
  */
 export async function saveDetectedIssues(
   projectId: string,
@@ -106,11 +113,17 @@ export async function saveDetectedIssues(
     }
   }
 
-  // auto_resolve: full 모드 + 분석 실제 실행됐을 때만.
-  // 재감지 안 된 unconfirmed 이슈 → auto_resolved (confirmed/auto_resolved는 그대로)
-  if (options.mode === 'full' && options.analysisRan) {
+  // auto_resolve: 분석이 실제 실행됐을 때만.
+  // 재감지 안 된 unconfirmed 이슈 중 diffFiles에 포함된 파일의 이슈를 auto_resolved로 전환.
+  // diffFiles undefined → 모든 파일 매칭 (구버전 호환).
+  // confirmed/auto_resolved는 그대로 둠.
+  if (options.analysisRan) {
+    const diffFiles = options.diffFiles;
     const candidates = existing.filter(
-      (e) => e.status === 'unconfirmed' && !matchedIds.has(e.id)
+      (e) =>
+        e.status === 'unconfirmed' &&
+        !matchedIds.has(e.id) &&
+        (!diffFiles || diffFiles.includes(e.file))
     );
 
     for (const candidate of candidates) {
