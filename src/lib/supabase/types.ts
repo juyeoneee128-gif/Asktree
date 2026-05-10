@@ -296,6 +296,42 @@ export interface Database {
         };
         Relationships: [];
       };
+      file_signatures: {
+        Row: {
+          id: string;
+          project_id: string;
+          file_path: string;
+          functions: string[];
+          imports: string[];
+          exports: string[];
+          patterns: string[];
+          line_count: number;
+          last_seen_at: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          project_id: string;
+          file_path: string;
+          functions?: string[];
+          imports?: string[];
+          exports?: string[];
+          patterns?: string[];
+          line_count?: number;
+          last_seen_at?: string;
+        };
+        Update: {
+          file_path?: string;
+          functions?: string[];
+          imports?: string[];
+          exports?: string[];
+          patterns?: string[];
+          line_count?: number;
+          last_seen_at?: string;
+        };
+        Relationships: [];
+      };
       ephemeral_data: {
         Row: {
           id: string;
