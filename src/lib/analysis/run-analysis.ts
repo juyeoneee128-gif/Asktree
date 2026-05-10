@@ -2,6 +2,7 @@ import { getEphemeral, deleteEphemeral } from '../agent/ephemeral';
 import { analyzeStatic } from './static-analyzer';
 import { analyzeSessionDiff } from './session-comparator';
 import { saveDetectedIssues } from './save-issues';
+import { upsertFileSignatures } from '../specs/save-signatures';
 import type { DetectedIssue } from './parse-response';
 import type { AnalysisMode } from './prompts';
 import type { EslintIssueRaw } from '../agent/validate-payload';
@@ -136,6 +137,21 @@ export async function runAnalysis(
       totalOutput += staticResult.tokenUsage.output;
       if (staticResult.unprocessed_files) {
         unprocessedFiles.push(...staticResult.unprocessed_files);
+      }
+
+      // file_signatures가 있으면 upsert (실패해도 분석 자체는 성공으로 처리)
+      if (staticResult.file_signatures && staticResult.file_signatures.length > 0) {
+        try {
+          const upsertResult = await upsertFileSignatures(
+            projectId,
+            staticResult.file_signatures
+          );
+          if (upsertResult.warnings.length > 0) {
+            warnings.push(...upsertResult.warnings);
+          }
+        } catch (err) {
+          warnings.push(`File signatures upsert failed: ${(err as Error).message}`);
+        }
       }
     } catch (err) {
       warnings.push(`Static analysis failed: ${(err as Error).message}`);

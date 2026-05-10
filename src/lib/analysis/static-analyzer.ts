@@ -161,6 +161,9 @@ export async function analyzeStatic(
     tokenUsage: llmResult.tokenUsage,
     warnings: finalWarnings,
     ...(llmResult.unprocessed_files ? { unprocessed_files: llmResult.unprocessed_files } : {}),
+    ...(llmResult.file_signatures && llmResult.file_signatures.length > 0
+      ? { file_signatures: llmResult.file_signatures }
+      : {}),
   };
 }
 
@@ -220,6 +223,7 @@ async function callStaticAnalysisSplit(
   const { chunks, oversizedFiles } = chunkDiffs(sorted);
 
   const allIssues: DetectedIssue[] = [];
+  const allSignatures: import('../specs/save-signatures').FileSignature[] = [];
   const allWarnings: string[] = [];
   let totalInput = 0;
   let totalOutput = 0;
@@ -248,6 +252,9 @@ async function callStaticAnalysisSplit(
 
     allIssues.push(...result.issues);
     allWarnings.push(...result.warnings);
+    if (result.file_signatures) {
+      allSignatures.push(...result.file_signatures);
+    }
     totalInput += result.tokenUsage.input;
     totalOutput += result.tokenUsage.output;
     callCount++;
@@ -288,6 +295,7 @@ async function callStaticAnalysisSplit(
     tokenUsage: { input: totalInput, output: totalOutput },
     warnings: allWarnings,
     ...(unprocessedFiles.length > 0 ? { unprocessed_files: unprocessedFiles } : {}),
+    ...(allSignatures.length > 0 ? { file_signatures: allSignatures } : {}),
   };
 }
 

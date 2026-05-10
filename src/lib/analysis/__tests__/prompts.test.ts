@@ -78,6 +78,32 @@ describe('도구 스키마', () => {
     expect(itemProps.end_line.type).toBe('integer');
   });
 
+  it('ANALYSIS_RESULT_TOOL에 file_signatures 필드와 항목 required 6개가 정의되어 있다', () => {
+    const schema = ANALYSIS_RESULT_TOOL.input_schema as {
+      properties: {
+        file_signatures: {
+          type: string;
+          items: { required: string[]; properties: Record<string, { type: string }> };
+        };
+      };
+      required: string[];
+    };
+    // file_signatures는 선택 필드 — required에 포함되면 안 됨 (issues만 required)
+    expect(schema.required).not.toContain('file_signatures');
+    // 하지만 항목 자체는 정의되어 있어야 함
+    expect(schema.properties.file_signatures.type).toBe('array');
+    const itemRequired = schema.properties.file_signatures.items.required;
+    expect(itemRequired).toEqual([
+      'file_path',
+      'functions',
+      'imports',
+      'exports',
+      'patterns',
+      'line_count',
+    ]);
+    expect(schema.properties.file_signatures.items.properties.line_count.type).toBe('integer');
+  });
+
   it('GUIDELINE_RESULT_TOOL에 필수 필드가 정의되어 있다', () => {
     expect(GUIDELINE_RESULT_TOOL.name).toBe('report_guideline');
     const schema = GUIDELINE_RESULT_TOOL.input_schema as Record<string, unknown>;
@@ -597,6 +623,30 @@ describe('buildStaticAnalysisSystem — 3차 고도화', () => {
     expect(prompt).toContain(
       '"basis": "[보안] [API] SEC-2: 인증/권한 검증 미확인 — middleware.ts 미확인 (CWE-306, OWASP A01)"'
     );
+  });
+});
+
+describe('buildStaticAnalysisSystem — file_signatures 가이드', () => {
+  it('full 모드에 시그니처 추출 가이드와 항목 정의가 포함된다', () => {
+    const prompt = buildStaticAnalysisSystem('full');
+    expect(prompt).toContain('## 파일 시그니처 (file_signatures)');
+    expect(prompt).toContain('합집합 머지');
+    // 항목 키워드
+    expect(prompt).toContain('functions');
+    expect(prompt).toContain('imports');
+    expect(prompt).toContain('exports');
+    expect(prompt).toContain('patterns');
+    expect(prompt).toContain('line_count');
+    // 추출 규칙 키워드
+    expect(prompt).toContain('새 파일');
+    expect(prompt).toContain('수정 파일');
+    expect(prompt).toContain('JavaScript/TypeScript');
+  });
+
+  it('problems_only 모드는 시그니처 가이드를 포함하지 않는다 (자동 분석 비용 절감)', () => {
+    const prompt = buildStaticAnalysisSystem('problems_only');
+    expect(prompt).not.toContain('## 파일 시그니처 (file_signatures)');
+    expect(prompt).not.toContain('합집합 머지');
   });
 });
 

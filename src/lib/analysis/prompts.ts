@@ -12,6 +12,46 @@ export const ANALYSIS_RESULT_TOOL: Tool = {
   input_schema: {
     type: 'object' as const,
     properties: {
+      file_signatures: {
+        type: 'array',
+        description:
+          'diff에 포함된 각 파일의 코드 시그니처. **full 모드에서만 작성**. problems_only 모드면 비워두거나 생략. 새 파일(+만 있음)은 전체 구조 정확 추출, 수정 파일은 변경 부분에서 보이는 정보만 추출 (서버는 합집합 머지로 누적함). diff에 없는 파일은 보고하지 마라.',
+        items: {
+          type: 'object',
+          properties: {
+            file_path: {
+              type: 'string',
+              description: 'diff 헤더의 파일 경로 그대로 (상대 경로)',
+            },
+            functions: {
+              type: 'array',
+              items: { type: 'string' },
+              description: '선언된 함수/메서드 이름 (예: handleLogin, validateEmail)',
+            },
+            imports: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'import 모듈 경로 (예: next/server, @/lib/supabase)',
+            },
+            exports: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'export 식별자 (default도 default라는 이름으로 기록)',
+            },
+            patterns: {
+              type: 'array',
+              items: { type: 'string' },
+              description:
+                '핵심 라이브러리/API 호출 패턴 (예: supabase.auth.signInWithPassword, stripe.charges.create, fetch)',
+            },
+            line_count: {
+              type: 'integer',
+              description: '파일의 총 줄 수 (수정 파일은 추정값)',
+            },
+          },
+          required: ['file_path', 'functions', 'imports', 'exports', 'patterns', 'line_count'],
+        },
+      },
       issues: {
         type: 'array',
         description: '감지된 이슈 목록. 이슈가 없으면 빈 배열.',
@@ -236,6 +276,29 @@ basis 필드 첫 줄에 카테고리 태그가 반드시 들어가야 합니다 
 - critical: 최대 5건
 - warning: 최대 10건
 - info: 최대 5건`;
+
+  const signaturesSection = isProblemsOnly
+    ? ''
+    : `## 파일 시그니처 (file_signatures)
+
+\`issues\`와 함께 \`file_signatures\` 배열도 작성하라. 이건 assessFeatures가 기능 구현 여부를 판정할 때 사용한다.
+
+### 추출 규칙
+- diff에 등장한 **각 파일 1건씩**. 같은 파일을 두 번 보고하지 마라.
+- diff에 없는 파일은 추측하지 말고 빠뜨려라.
+- **새 파일(\`+\`만 있음)**: 함수/import/export/패턴/줄 수를 정확히 추출
+- **수정 파일**: 변경된 라인에서 보이는 정보만 추출. 안 보이는 함수는 빼도 된다 — 서버가 합집합 머지로 누적함
+- 각 항목은 dedup된 짧은 문자열 (조사·괄호·인자 제외)
+
+### 항목 정의
+- **functions**: \`function foo()\`, \`const foo = () =>\`, \`async function foo()\`, 클래스 메서드 등 — 식별자만
+- **imports**: \`import ... from 'X'\` 의 X (모듈 경로). default/named 구분 안 함
+- **exports**: \`export function foo\`, \`export const foo\`, \`export default ...\` (default는 'default'로), \`export { foo, bar }\`
+- **patterns**: 핵심 라이브러리/API 호출 (예: \`supabase.auth.signInWithPassword\`, \`stripe.charges.create\`, \`fetch\`, \`prisma.user.findMany\`). 일반 함수 호출은 빼고 외부 서비스/SDK 호출만
+- **line_count**: 새 파일은 정확히, 수정 파일은 추정값 (모르면 0)
+
+### 언어
+JavaScript/TypeScript 위주. 다른 언어 파일은 빈 배열로 두거나 file_signatures에 포함하지 마라.`;
 
   const exampleSection = isProblemsOnly
     ? `# ⑥ Example output
@@ -472,6 +535,8 @@ report_analysis_results 도구를 호출하여 결과를 보고하세요.
 ${limitsSection}
 - 상한 초과 시 **심각도 + confidence가 높은 순으로 우선** 선택하고 나머지는 제외하세요.
 - 이슈가 없으면 반드시 빈 배열을 반환하세요. 없는 문제를 만들어내지 마세요.
+
+${signaturesSection}
 
 ${exampleSection}`;
 }
