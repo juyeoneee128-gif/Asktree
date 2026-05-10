@@ -68,6 +68,21 @@ export async function assessFeatures(projectId: string): Promise<AssessResult> {
     changed_files: Array.isArray(s.changed_files) ? (s.changed_files as string[]) : [],
   }));
 
+  // 2.5. 파일 시그니처 조회 (LLM + 정규식 양 경로에서 누적된 데이터)
+  const { data: signatureRows } = await supabase
+    .from('file_signatures')
+    .select('file_path, functions, imports, exports, patterns, line_count')
+    .eq('project_id', projectId);
+
+  const signatures = (signatureRows ?? []).map((r) => ({
+    file_path: r.file_path,
+    functions: r.functions ?? [],
+    imports: r.imports ?? [],
+    exports: r.exports ?? [],
+    patterns: r.patterns ?? [],
+    line_count: r.line_count ?? 0,
+  }));
+
   // 3. Claude API 호출
   const userMessage = buildAssessMessage({
     features: features.map((f) => ({
@@ -77,6 +92,7 @@ export async function assessFeatures(projectId: string): Promise<AssessResult> {
       prd_summary: f.prd_summary,
     })),
     sessions: sessionData,
+    file_signatures: signatures,
   });
 
   const result = await callClaude({

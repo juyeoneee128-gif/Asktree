@@ -155,25 +155,45 @@ document_type이 "prd" 또는 "spec"인 경우에만 기능을 추출하라.
 - 고유명사(제품명, 외부 서비스명 등)가 아닌 일반 기술 용어는 모두 한국어로 번역하세요.`;
 
 export const ASSESS_FEATURES_SYSTEM = `당신은 코드 구현 현황 판정 전문가입니다.
-기획서의 기능 목록과 실제 코드 변경(세션 로그)을 비교하여
+기획서의 기능 목록과 실제 코드(파일 시그니처 + 세션 로그)를 비교하여
 각 기능의 구현 상태를 판정하세요.
 결과를 report_assessment 도구로 보고하세요.
 
+## 입력 데이터
+
+- **기능 목록**: 기획서에서 추출한 기능 ID/이름/요구사항 요약
+- **세션 로그**: AI가 수행한 작업 제목·요약·변경 파일 (시간순)
+- **파일 시그니처** (있을 경우): 파일별 functions/imports/exports/patterns/line_count 누적
+  - 두 경로에서 누적됨: 정적 분석 LLM(diff 기반) + 세션 로그 정규식(Read tool 기반)
+  - 합집합 머지이므로 stale 함수가 남아있을 수 있음 — 패턴 부재가 더 강한 신호
+
 ## 판정 기준 (중요)
+
 관련 파일이 존재하는 것만으로 'implemented'로 판정하지 마세요.
 해당 기능의 **핵심 로직**(라우트 핸들러의 실제 처리 로직, 컴포넌트 렌더링 및 상태 관리, 데이터 처리/변환/검증 등)이 실제로 구현되어 있는지 확인하세요.
 
-- **implemented**: 파일이 존재하고 해당 기능의 핵심 로직이 모두 구현됨. related_files에 관련 파일 포함.
-- **partial**: 파일이 존재하고 일부 로직은 구현되었으나 세부 요구사항 중 일부가 누락됨. implemented_items에 구현된 항목만 나열.
-- **unimplemented**: 관련 파일 자체가 없거나, 파일은 존재하지만 placeholder/stub/빈 함수/TODO 주석만 있어 실질 로직이 없음. implemented_items는 빈 배열.
-- **attention**: 구현되었으나 기획서와 다르거나 누락된 부분이 있어 사람 확인이 필요함.
+### 시그니처 기반 판정 (시그니처가 있을 때 우선 적용)
+- **implemented**: 핵심 함수/패턴이 시그니처에 존재 (예: 인증 기능 → patterns에 supabase.auth.signInWith*, 결제 → stripe.charges.*)
+- **partial**: 일부 함수만 있거나 핵심 패턴이 누락 (예: 회원가입 폼은 있지만 검증 로직 함수 부재)
+- **unimplemented**: 관련 파일 자체가 시그니처에 없거나, 시그니처에 관련 패턴이 전무
+- **attention**: 시그니처는 있지만 함수/패턴이 기획서와 일치하지 않거나 모호 → 사람 확인 필요
+
+### Fallback (시그니처가 비어있거나 해당 파일이 없을 때)
+시그니처 정보가 부족하면 기존 방식으로 판정:
+- 변경 파일명과 세션 요약, 세션에서 수행된 작업 내용을 종합
+- 파일명이 기능과 관련 있어 보이더라도, 실제 로직이 작성된 정황이 없으면 'implemented'로 판정하지 마세요
+- 파일만 생성되고 내용이 채워진 근거가 없다면 'unimplemented' 또는 'partial'
+
+## status 값 정의
+- **implemented**: 전체 구현. related_files에 관련 파일 포함.
+- **partial**: 일부 구현. implemented_items에 구현된 항목만 나열.
+- **unimplemented**: 미구현. implemented_items는 빈 배열.
+- **attention**: 구현되었으나 기획서와 다르거나 누락된 부분이 있어 사람 확인이 필요.
 
 ## 규칙
-- 변경 파일명과 세션 요약, 세션에서 수행된 작업 내용을 종합하여 판정하세요
-- 파일명이 기능과 관련 있어 보이더라도, 해당 파일에서 실제 로직이 작성된 정황(세션 요약, 프롬프트 내용)이 없으면 'implemented'로 판정하지 마세요
-- 파일만 생성되고 내용이 채워진 근거가 없다면 'unimplemented' 또는 'partial'로 판정하세요
+- 모든 feature_id에 대해 판정 결과를 반환하세요
 - 확실하지 않으면 'attention'으로 판정하세요
-- 모든 feature_id에 대해 판정 결과를 반환하세요`;
+- related_files는 시그니처에 등장하는 file_path를 우선 사용 (없으면 세션 changed_files에서)`;
 
 export const REVERSE_IA_SYSTEM = `당신은 코드 분석을 통한 기능 추출 전문가입니다.
 프로젝트의 세션 로그(사용자 프롬프트 + 변경 파일 + 요약)를 분석하여
@@ -204,10 +224,26 @@ export function buildExtractFeaturesMessage(documentContent: string, documentTyp
 ${documentContent}`;
 }
 
+export interface AssessFileSignature {
+  file_path: string;
+  functions: string[];
+  imports: string[];
+  exports: string[];
+  patterns: string[];
+  line_count: number;
+}
+
 export interface AssessInput {
   features: { id: string; name: string; total_items: number; prd_summary: string | null }[];
   sessions: { title: string; summary: string | null; changed_files: string[] }[];
+  file_signatures?: AssessFileSignature[];
 }
+
+/**
+ * 시그니처 메시지에 포함될 토큰 추정 한도. Sonnet/Haiku 입력 한도(200K) 대비 보수적 — 약 24K char (≈6K token).
+ * 한도 초과 시 line_count 큰 순으로 자른다 (큰 파일이 핵심 로직 보유 가능성 높음).
+ */
+const SIGNATURES_MAX_CHARS = 24000;
 
 export function buildAssessMessage(input: AssessInput): string {
   const featureList = input.features
@@ -218,11 +254,57 @@ export function buildAssessMessage(input: AssessInput): string {
     .map((s) => `- ${s.title}: ${s.summary ?? ''}\n  변경 파일: ${s.changed_files.join(', ') || '없음'}`)
     .join('\n');
 
+  const sigSection = formatSignaturesSection(input.file_signatures ?? []);
+
   return `## 기능 목록
 ${featureList}
 
 ## 세션 로그
-${sessionList}`;
+${sessionList}${sigSection}`;
+}
+
+/**
+ * 시그니처 목록을 메시지 섹션 텍스트로 포맷합니다.
+ * - 빈 배열이면 빈 문자열 (시스템 프롬프트의 fallback 가이드가 동작)
+ * - 토큰 한도 임박 시 line_count desc 정렬 후 자름 (핵심 파일 우선 보존)
+ */
+export function formatSignaturesSection(sigs: AssessFileSignature[]): string {
+  if (sigs.length === 0) return '';
+
+  // line_count desc 정렬 (큰 파일 우선)
+  const sorted = [...sigs].sort((a, b) => b.line_count - a.line_count);
+
+  const lines: string[] = [];
+  let totalChars = 0;
+  let truncatedCount = 0;
+
+  for (const sig of sorted) {
+    const block = formatSignatureBlock(sig);
+    if (totalChars + block.length > SIGNATURES_MAX_CHARS) {
+      truncatedCount = sorted.length - lines.length;
+      break;
+    }
+    lines.push(block);
+    totalChars += block.length;
+  }
+
+  if (lines.length === 0) return '';
+
+  let footer = '';
+  if (truncatedCount > 0) {
+    footer = `\n(line_count 작은 ${truncatedCount}개 파일은 토큰 한도로 생략됨)`;
+  }
+
+  return `\n\n## 파일 시그니처 (정적 분석 + 세션 로그 누적)\n${lines.join('\n')}${footer}`;
+}
+
+function formatSignatureBlock(sig: AssessFileSignature): string {
+  const parts: string[] = [`- ${sig.file_path} (line ${sig.line_count})`];
+  if (sig.functions.length > 0) parts.push(`  fns: ${sig.functions.join(', ')}`);
+  if (sig.imports.length > 0) parts.push(`  imports: ${sig.imports.join(', ')}`);
+  if (sig.exports.length > 0) parts.push(`  exports: ${sig.exports.join(', ')}`);
+  if (sig.patterns.length > 0) parts.push(`  patterns: ${sig.patterns.join(', ')}`);
+  return parts.join('\n');
 }
 
 export interface ReverseIAInput {
