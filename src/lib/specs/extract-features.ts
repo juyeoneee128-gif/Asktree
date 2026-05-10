@@ -21,8 +21,13 @@ interface ExtractedFeature {
   prd_summary: string;
 }
 
+export type DocumentClassification = 'prd' | 'spec' | 'other';
+
+const VALID_CLASSIFICATIONS = new Set<string>(['prd', 'spec', 'other']);
+
 export interface ExtractFeaturesResult {
   document_id: string;
+  document_type: DocumentClassification | null;
   features_count: number;
   features: ExtractedFeature[];
   token_usage: { input: number; output: number };
@@ -80,10 +85,16 @@ export async function extractFeaturesForDocument(
     model: ANALYSIS_MODELS.EXTRACT_FEATURES,
   });
 
-  // 2. 응답 파싱
+  // 2. 응답 파싱 — document_type + features
+  let classification: DocumentClassification | null = null;
   const features: ExtractedFeature[] = [];
 
   for (const input of result.toolInputs) {
+    const rawType = input.document_type;
+    if (typeof rawType === 'string' && VALID_CLASSIFICATIONS.has(rawType)) {
+      classification = rawType as DocumentClassification;
+    }
+
     const rawFeatures = input.features;
     if (!Array.isArray(rawFeatures)) continue;
 
@@ -99,9 +110,27 @@ export async function extractFeaturesForDocument(
     }
   }
 
-  // 3. spec_features 일괄 INSERT
-  if (features.length > 0) {
-    const rows = features.map((f) => ({
+  // 3. classification이 'other'이면 features를 강제로 비움 (LLM이 잘못 추출했을 경우 방어)
+  const effectiveFeatures = classification === 'other' ? [] : features;
+
+  // 4. spec_documents.classification UPDATE (분류 결과 영구 저장)
+  if (classification !== null) {
+    const { error: classifyError } = await supabase
+      .from('spec_documents')
+      .update({ classification })
+      .eq('id', documentId);
+
+    if (classifyError) {
+      // 분류 저장 실패는 경고만 — extract 자체는 진행
+      console.warn(
+        `[extract] failed to save classification for ${documentId}: ${classifyError.message}`
+      );
+    }
+  }
+
+  // 5. spec_features 일괄 INSERT (other이거나 features 0개면 skip)
+  if (effectiveFeatures.length > 0) {
+    const rows = effectiveFeatures.map((f) => ({
       project_id: projectId,
       document_id: documentId,
       name: f.name,
@@ -116,8 +145,9 @@ export async function extractFeaturesForDocument(
     if (insertError) {
       return {
         document_id: documentId,
+        document_type: classification,
         features_count: 0,
-        features,
+        features: effectiveFeatures,
         token_usage: result.tokenUsage,
         error: `Features extracted but failed to save: ${insertError.message}`,
       };
@@ -126,8 +156,9 @@ export async function extractFeaturesForDocument(
 
   return {
     document_id: documentId,
-    features_count: features.length,
-    features,
+    document_type: classification,
+    features_count: effectiveFeatures.length,
+    features: effectiveFeatures,
     token_usage: result.tokenUsage,
     error: null,
   };
@@ -149,6 +180,7 @@ export async function extractAndSaveFeatures(
   if ('error' in insertResult) {
     return {
       document_id: '',
+      document_type: null,
       features_count: 0,
       features: [],
       token_usage: { input: 0, output: 0 },

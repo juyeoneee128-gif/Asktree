@@ -4,13 +4,21 @@ import type { Tool } from '@anthropic-ai/sdk/resources/messages';
 
 export const EXTRACT_FEATURES_TOOL: Tool = {
   name: 'report_extracted_features',
-  description: 'Report the list of features extracted from the spec document.',
+  description:
+    'Classify the document type, then report the list of features (only when document_type is "prd" or "spec").',
   input_schema: {
     type: 'object' as const,
     properties: {
+      document_type: {
+        type: 'string',
+        enum: ['prd', 'spec', 'other'],
+        description:
+          'prd: 제품 기획서/요구사항/기능 명세서. spec: 기술 명세/API 설계/DB 스키마. other: 컴포넌트 목록·회의록·핸드오프·이슈 메모·스타일 가이드 등 기능 추출 대상이 아닌 문서. "other"이면 features는 반드시 빈 배열.',
+      },
       features: {
         type: 'array',
-        description: '추출된 기능 목록',
+        description:
+          '추출된 기능 목록. document_type이 "other"이면 반드시 빈 배열([])을 반환.',
         items: {
           type: 'object',
           properties: {
@@ -22,7 +30,7 @@ export const EXTRACT_FEATURES_TOOL: Tool = {
         },
       },
     },
-    required: ['features'],
+    required: ['document_type', 'features'],
   },
 };
 
@@ -104,10 +112,34 @@ export const REVERSE_IA_TOOL: Tool = {
 // ─── 시스템 프롬프트 ───
 
 export const EXTRACT_FEATURES_SYSTEM = `당신은 소프트웨어 기획서 분석 전문가입니다.
-주어진 기획서에서 구현해야 할 기능 목록을 추출하세요.
+주어진 문서를 먼저 분류한 뒤, 분류 결과에 따라 기능을 추출하세요.
 결과를 report_extracted_features 도구로 보고하세요.
 
-## 추출 규칙
+## 1단계: 문서 분류
+
+이 문서의 내용을 읽고 아래 유형 중 하나로 분류하라:
+
+- **"prd"**: 제품 기획서, 요구사항 정의서, 기능 명세서
+  → 구현해야 할 기능/요구사항이 서술되어 있는 문서
+- **"spec"**: 기술 명세, API 설계, 데이터베이스 스키마 정의
+  → 구현 방법이 구체적으로 정의된 문서
+- **"other"**: 위에 해당하지 않는 문서
+  → 컴포넌트 목록, 디자인 프레임 목록, 회의록, 논의 문서,
+    이슈/버그 목록, 핸드오프 메모, 스타일 가이드
+
+### 분류 판단 기준
+- 문서에 "~기능을 제공한다", "~할 수 있다", "~를 구현한다" 같은
+  요구사항 서술이 있으면 → **"prd"**
+- 문서에 API 엔드포인트, DB 테이블, 데이터 플로우가 정의되어 있으면 → **"spec"**
+- 문서가 목록 나열(컴포넌트명, 파일명, 프레임명)만 하고
+  구현 요구사항이 없으면 → **"other"**
+
+## 2단계: 기능 추출
+
+document_type이 "prd" 또는 "spec"인 경우에만 기능을 추출하라.
+**"other"이면 features를 반드시 빈 배열([])로 반환하라.** 기능을 추출하지 마세요.
+
+## 추출 규칙 (prd/spec일 때만 적용)
 - 각 기능은 독립적으로 구현 가능한 단위로 분리하세요
 - 하위 항목(세부 요구사항)이 있으면 total_items로 카운트하세요
 - prd_summary는 해당 기능의 핵심 요구사항 1~2문장 요약

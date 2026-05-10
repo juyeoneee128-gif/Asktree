@@ -18,6 +18,17 @@ describe('도구 스키마', () => {
     expect(schema.required).toContain('features');
   });
 
+  it('EXTRACT_FEATURES_TOOL은 document_type을 enum + required로 정의한다', () => {
+    const schema = EXTRACT_FEATURES_TOOL.input_schema as {
+      properties: { document_type: { type: string; enum: string[] } };
+      required: string[];
+    };
+    expect(schema.required).toContain('document_type');
+    expect(schema.required).toContain('features');
+    expect(schema.properties.document_type.type).toBe('string');
+    expect(schema.properties.document_type.enum).toEqual(['prd', 'spec', 'other']);
+  });
+
   it('ASSESS_FEATURES_TOOL에 assessments 필드가 정의되어 있다', () => {
     expect(ASSESS_FEATURES_TOOL.name).toBe('report_assessment');
     const schema = ASSESS_FEATURES_TOOL.input_schema as Record<string, unknown>;
@@ -34,8 +45,22 @@ describe('도구 스키마', () => {
 describe('시스템 프롬프트', () => {
   it('기능 추출 프롬프트에 핵심 지시가 포함되어 있다', () => {
     expect(EXTRACT_FEATURES_SYSTEM).toContain('기획서');
-    expect(EXTRACT_FEATURES_SYSTEM).toContain('기능 목록');
+    expect(EXTRACT_FEATURES_SYSTEM).toContain('기능을 추출');
     expect(EXTRACT_FEATURES_SYSTEM).toContain('UI/디자인');
+  });
+
+  it('기능 추출 프롬프트에 1단계 분류 + 2단계 추출 가이드가 포함된다', () => {
+    expect(EXTRACT_FEATURES_SYSTEM).toContain('1단계: 문서 분류');
+    expect(EXTRACT_FEATURES_SYSTEM).toContain('2단계: 기능 추출');
+    // 3개 분류 라벨 + 정의 키워드
+    expect(EXTRACT_FEATURES_SYSTEM).toContain('"prd"');
+    expect(EXTRACT_FEATURES_SYSTEM).toContain('"spec"');
+    expect(EXTRACT_FEATURES_SYSTEM).toContain('"other"');
+    expect(EXTRACT_FEATURES_SYSTEM).toContain('컴포넌트 목록');
+    expect(EXTRACT_FEATURES_SYSTEM).toContain('회의록');
+    expect(EXTRACT_FEATURES_SYSTEM).toContain('핸드오프');
+    // other이면 빈 배열 강제
+    expect(EXTRACT_FEATURES_SYSTEM).toContain('"other"이면 features를 반드시 빈 배열');
   });
 
   it('판정 프롬프트에 판정 기준이 포함되어 있다', () => {

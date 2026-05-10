@@ -221,6 +221,7 @@ export interface Database {
           content_hash: string | null;
           path: string | null;
           source: 'manual' | 'agent';
+          classification: 'prd' | 'spec' | 'other' | null;
           modified_at: string | null;
           deleted_at: string | null;
           uploaded_at: string;
@@ -236,6 +237,7 @@ export interface Database {
           content_hash?: string | null;
           path?: string | null;
           source?: 'manual' | 'agent';
+          classification?: 'prd' | 'spec' | 'other' | null;
           modified_at?: string | null;
           deleted_at?: string | null;
           uploaded_at?: string;
@@ -248,6 +250,7 @@ export interface Database {
           content_hash?: string | null;
           path?: string | null;
           source?: 'manual' | 'agent';
+          classification?: 'prd' | 'spec' | 'other' | null;
           modified_at?: string | null;
           deleted_at?: string | null;
         };
