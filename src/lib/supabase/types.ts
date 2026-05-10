@@ -268,6 +268,7 @@ export interface Database {
           total_items: number;
           related_files: Json;
           prd_summary: string | null;
+          is_duplicate: boolean;
           created_at: string;
         };
         Insert: {
@@ -281,6 +282,7 @@ export interface Database {
           total_items?: number;
           related_files?: Json;
           prd_summary?: string | null;
+          is_duplicate?: boolean;
         };
         Update: {
           name?: string;
@@ -290,6 +292,7 @@ export interface Database {
           total_items?: number;
           related_files?: Json;
           prd_summary?: string | null;
+          is_duplicate?: boolean;
         };
         Relationships: [];
       };

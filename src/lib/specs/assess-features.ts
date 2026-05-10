@@ -39,11 +39,12 @@ export async function assessFeatures(projectId: string): Promise<AssessResult> {
   const supabase = createAdminClient();
   const warnings: string[] = [];
 
-  // 1. 기능 목록 조회
+  // 1. 기능 목록 조회 (중복 마킹된 항목 제외)
   const { data: features } = await supabase
     .from('spec_features')
     .select('id, name, total_items, prd_summary')
-    .eq('project_id', projectId);
+    .eq('project_id', projectId)
+    .eq('is_duplicate', false);
 
   if (!features || features.length === 0) {
     return {
@@ -129,11 +130,12 @@ export async function assessFeatures(projectId: string): Promise<AssessResult> {
     }
   }
 
-  // 5. 통계 계산
+  // 5. 통계 계산 (중복 제외)
   const { data: updatedFeatures } = await supabase
     .from('spec_features')
     .select('status')
-    .eq('project_id', projectId);
+    .eq('project_id', projectId)
+    .eq('is_duplicate', false);
 
   const all = updatedFeatures ?? [];
   const stats = {

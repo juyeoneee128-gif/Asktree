@@ -16,6 +16,7 @@ import { runAnalysis } from '@/src/lib/analysis/run-analysis';
 import { assessFeatures } from '@/src/lib/specs/assess-features';
 import { syncAgentDocs } from '@/src/lib/specs/sync-docs';
 import { extractFeaturesForDocument } from '@/src/lib/specs/extract-features';
+import { dedupeFeaturesForProject } from '@/src/lib/specs/dedupe-features';
 import { countDiffLines } from '@/src/lib/agent/diff-stats';
 import { hasUserApiKey, getUserApiKey } from '@/src/lib/credits/byok';
 import { deductCredit, getCreditInfo } from '@/src/lib/credits/deduct';
@@ -345,6 +346,19 @@ export async function POST(request: Request) {
         }
 
         if (count && count > 0) {
+          // dedupe → assess 순서. dedupe는 LLM 호출 없음 (무료).
+          try {
+            const dedupe = await dedupeFeaturesForProject(payload.project_id);
+            if (dedupe.warnings.length > 0) {
+              console.error('[push] dedupe warnings:', dedupe.warnings);
+            }
+            console.log(
+              `[push] dedupe: ${dedupe.checked} checked, ${dedupe.marked} marked as duplicate`
+            );
+          } catch (err) {
+            console.error('[push] dedupe failed:', (err as Error).message);
+          }
+
           await assessFeatures(payload.project_id);
         }
       } catch (err) {
