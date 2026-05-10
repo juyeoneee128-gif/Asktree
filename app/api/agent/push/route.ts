@@ -17,6 +17,7 @@ import { assessFeatures } from '@/src/lib/specs/assess-features';
 import { syncAgentDocs } from '@/src/lib/specs/sync-docs';
 import { extractFeaturesForDocument } from '@/src/lib/specs/extract-features';
 import { dedupeFeaturesForProject } from '@/src/lib/specs/dedupe-features';
+import { upsertFileSignatures } from '@/src/lib/specs/save-signatures';
 import { countDiffLines } from '@/src/lib/agent/diff-stats';
 import { hasUserApiKey, getUserApiKey } from '@/src/lib/credits/byok';
 import { deductCredit, getCreditInfo } from '@/src/lib/credits/deduct';
@@ -167,6 +168,14 @@ export async function POST(request: Request) {
   }
 
   const { saved } = saveResult;
+
+  // 7.5. Read tool_result 시그니처 upsert (fire-and-forget, 응답 차단 안 함)
+  // 비용 0 정규식 추출. 정적 분석 LLM 경로(run-analysis)와 합집합 머지로 누적.
+  if (parsed.file_signatures.length > 0) {
+    upsertFileSignatures(payload.project_id, parsed.file_signatures).catch((err) => {
+      console.error('[push] regex signatures upsert failed:', (err as Error).message);
+    });
+  }
 
   // 8. Ephemeral 데이터 저장 (diffs, file_tree, eslint)
   try {
