@@ -496,6 +496,110 @@ describe('buildSessionComparisonSystem — Example output', () => {
   });
 });
 
+describe('buildStaticAnalysisSystem — 3차 고도화', () => {
+  it('Partial-context 강화 규칙: "안 보인다 ≠ 없다" 핵심 원칙과 5개 규칙 키워드를 모두 포함', () => {
+    const prompt = buildStaticAnalysisSystem('full');
+    expect(prompt).toContain('Partial-context 판단 규칙 (강화)');
+    expect(prompt).toContain('안 보인다 ≠ 없다');
+    // 5개 규칙 키워드
+    expect(prompt).toContain('import가 diff에 있지만 사용처가 안 보인다');
+    expect(prompt).toContain('함수가 정의됐지만 호출이 안 보인다');
+    expect(prompt).toContain('환경변수가 참조됐지만 .env');
+    expect(prompt).toContain('try-catch가 diff에 안 보인다');
+    expect(prompt).toContain('인증 미들웨어가 diff에 안 보인다');
+    // 라우트 핸들러 예외 단서
+    expect(prompt).toContain('app/api/*/route.ts');
+    expect(prompt).toContain('middleware.ts');
+    // confidence 0.5 이하 + detail 미확인 문구 명령
+    expect(prompt).toContain('confidence를 0.5 이하');
+    expect(prompt).toContain('전체 파일을 확인하지 못해 판단이 제한적입니다');
+  });
+
+  it('full 모드만 SEC-1~3 좋은/나쁜 감지 예시를 포함한다', () => {
+    const fullPrompt = buildStaticAnalysisSystem('full');
+    const problemsOnlyPrompt = buildStaticAnalysisSystem('problems_only');
+
+    // full에 포함되는 키워드
+    expect(fullPrompt).toContain('## 좋은 감지 vs 나쁜 감지 예시');
+    expect(fullPrompt).toContain('SEC-1 하드코딩된 비밀');
+    expect(fullPrompt).toContain('SEC-2 인증 부재');
+    expect(fullPrompt).toContain('SEC-3 입력 미검증');
+    // SEC-1 좋은/나쁜 키워드
+    expect(fullPrompt).toContain('sk-ant-api03-');
+    expect(fullPrompt).toContain('https://api.example.com');
+    expect(fullPrompt).toContain('URL은 비밀이 아니다');
+    // SEC-2 좋은/나쁜 키워드
+    expect(fullPrompt).toContain('app/api/users/route.ts');
+    expect(fullPrompt).toContain('health check는 인증 불필요');
+    // SEC-3 좋은/나쁜 키워드
+    expect(fullPrompt).toContain('req.body.email');
+    expect(fullPrompt).toContain('parseInt');
+    expect(fullPrompt).toContain('이미 검증한 것');
+    // 안정성 — 에러 처리 / 기능 삭제
+    expect(fullPrompt).toContain('### 안정성 — 에러 처리');
+    expect(fullPrompt).toContain('### 안정성 — 기능 삭제');
+    expect(fullPrompt).toContain('확신 없으면 보고하지 마라');
+    expect(fullPrompt).toContain('삭제가 아니라 개선일 수 있음');
+
+    // problems_only에는 등장하지 않음
+    expect(problemsOnlyPrompt).not.toContain('## 좋은 감지 vs 나쁜 감지 예시');
+    expect(problemsOnlyPrompt).not.toContain('SEC-1 하드코딩된 비밀');
+  });
+
+  it('Negative list 강화 — ESLint 위임 + 품질 보고 가능 항목 키워드 포함', () => {
+    const prompt = buildStaticAnalysisSystem('full');
+    // 추가된 negative 키워드
+    expect(prompt).toContain('ESLint가 이미 잡는 규칙');
+    expect(prompt).toContain('import만 있고 사용처가 diff에 안 보이는 경우');
+    expect(prompt).toContain('export된 함수가 현재 diff에서 호출되지 않는 경우');
+    expect(prompt).toContain('파일명/변수명 컨벤션');
+    // "보고해도 되는 품질 이슈" 블록
+    expect(prompt).toContain('## 보고해도 되는 품질 이슈');
+    expect(prompt).toContain('DRY 위반');
+    expect(prompt).toContain('100줄 이상');
+    expect(prompt).toContain('4단계 이상 if/for');
+    expect(prompt).toContain('매직 넘버');
+  });
+
+  it('problems_only 모드에는 "보고해도 되는 품질 이슈" 블록이 등장하지 않는다', () => {
+    const prompt = buildStaticAnalysisSystem('problems_only');
+    expect(prompt).not.toContain('## 보고해도 되는 품질 이슈');
+    expect(prompt).not.toContain('DRY 위반');
+  });
+
+  it('이슈 그룹핑 규칙이 ④ 작성 가이드로 이동했다 — ③에는 없고 ④에 있다', () => {
+    const prompt = buildStaticAnalysisSystem('full');
+    const fourthSectionStart = prompt.indexOf('# ④ 작성 가이드');
+    const fifthSectionStart = prompt.indexOf('# ⑤ 출력 스키마');
+    const thirdSection = prompt.slice(0, fourthSectionStart);
+    const fourthSection = prompt.slice(fourthSectionStart, fifthSectionStart);
+
+    // ③에는 그룹핑 헤더가 없어야 함
+    expect(thirdSection).not.toContain('## 이슈 그룹핑');
+    // ④에는 강화된 그룹핑 헤더가 있어야 함
+    expect(fourthSection).toContain('## 이슈 그룹핑 규칙 (강화)');
+    expect(fourthSection).toContain('통합 대상');
+    expect(fourthSection).toContain('통합하지 않을 대상');
+    expect(fourthSection).toContain('심각도가 다른');
+    // 통합 대상 구체 키워드
+    expect(fourthSection).toContain('3개 API 라우트에 에러 처리 누락');
+    expect(fourthSection).toContain('2개 API 엔드포인트에 인증 미적용');
+  });
+
+  it('⑥ full Example output 3번째 이슈에 partial-context 미확인 사례가 포함된다', () => {
+    const prompt = buildStaticAnalysisSystem('full');
+    expect(prompt).toContain('"관리자 라우트 인증 미확인"');
+    expect(prompt).toContain('app/api/admin/users/route.ts');
+    expect(prompt).toContain('"confidence": 0.6');
+    // detail에 미확인 문구
+    expect(prompt).toMatch(/"detail":[\s\S]*?전체 파일을 확인하지 못해 판단이 제한적입니다/);
+    // basis에 SEC-2 + middleware.ts 미확인 표기
+    expect(prompt).toContain(
+      '"basis": "[보안] [API] SEC-2: 인증/권한 검증 미확인 — middleware.ts 미확인 (CWE-306, OWASP A01)"'
+    );
+  });
+});
+
 describe('GUIDELINE_GENERATION_SYSTEM', () => {
   it('가이드라인 프롬프트에 작성 가이드가 포함된다', () => {
     expect(GUIDELINE_GENERATION_SYSTEM).toContain('명령형 문체');

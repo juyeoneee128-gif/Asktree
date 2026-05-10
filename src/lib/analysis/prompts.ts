@@ -122,6 +122,17 @@ export function buildStaticAnalysisSystem(mode: AnalysisMode = 'full'): string {
 `
     : '';
 
+  const qualityPositiveSection = isProblemsOnly
+    ? ''
+    : `## 보고해도 되는 품질 이슈
+
+다음은 [품질] 카테고리로 보고할 가치가 있습니다:
+- **DRY 위반** — 동일 로직이 3곳 이상에서 복붙됨 → 유틸 함수로 추출 권장
+- **과도한 함수 길이** — 하나의 함수가 100줄 이상 → 분리 권장
+- **깊은 중첩** — 4단계 이상 if/for → 가독성 저하
+- **매직 넘버** — 의미 불명의 하드코딩 숫자 → 상수로 추출 권장
+`;
+
   const categoriesSection = isProblemsOnly
     ? `## 감지 카테고리 (problems_only — critical 위주)
 
@@ -192,6 +203,30 @@ basis 필드 첫 줄에 카테고리 태그가 반드시 들어가야 합니다 
 
 단, 스타일/들여쓰기/네이밍 컨벤션은 보고하지 마세요 (ESLint 영역).`;
 
+  const detectionExamplesSection = isProblemsOnly
+    ? ''
+    : `## 좋은 감지 vs 나쁜 감지 예시
+
+### SEC-1 하드코딩된 비밀
+- **좋은 감지**: \`const API_KEY = "sk-ant-api03-..."\` → 실제 키 패턴 매칭
+- **나쁜 감지**: \`const API_URL = "https://api.example.com"\` → URL은 비밀이 아니다
+
+### SEC-2 인증 부재
+- **좋은 감지**: \`app/api/users/route.ts\`에 GET 핸들러가 있고, 세션/토큰 검증이 전혀 없음
+- **나쁜 감지**: \`app/api/health/route.ts\`에 인증이 없음 → health check는 인증 불필요
+
+### SEC-3 입력 미검증
+- **좋은 감지**: \`req.body.email\`을 검증 없이 DB 쿼리에 직접 사용
+- **나쁜 감지**: \`req.query.page\`를 \`parseInt\`로 변환 → 이건 이미 검증한 것
+
+### 안정성 — 에러 처리
+- **좋은 감지**: \`fetch()\` 호출 후 \`.catch()\`도 없고 try-catch도 없는 await
+- **나쁜 감지**: \`supabase.from('users').select()\` → supabase 클라이언트가 내부에서 에러를 처리할 수 있음 (확신 없으면 보고하지 마라)
+
+### 안정성 — 기능 삭제
+- **좋은 감지**: 이전 세션에 있던 \`app/api/checkout/route.ts\` 파일 전체가 diff에서 삭제됨
+- **나쁜 감지**: 함수 내부 코드가 리팩토링됨 → 삭제가 아니라 개선일 수 있음`;
+
   const limitsSection = isProblemsOnly
     ? `## 이슈 수 상한 (problems_only)
 - critical: 최대 3건
@@ -251,6 +286,18 @@ basis 필드 첫 줄에 카테고리 태그가 반드시 들어가야 합니다 
       "confidence": 0.85,
       "start_line": 24,
       "end_line": 31
+    },
+    {
+      "title": "관리자 라우트 인증 미확인",
+      "level": "warning",
+      "fact": "app/api/admin/users/route.ts의 GET 핸들러에 인증/권한 검증 로직이 보이지 않는 것이 감지되었습니다.",
+      "detail": "관리자 전용 사용자 목록 조회 라우트에 세션 검증이 없다면 미인증 사용자가 사용자 데이터에 접근할 수 있습니다. 다만 middleware.ts에서 전역 가드를 둘 가능성이 있어, 전체 파일을 확인하지 못해 판단이 제한적입니다.",
+      "fix_command": "[현재 상태] app/api/admin/users/route.ts GET 핸들러에 인증/권한 검증 코드가 보이지 않음\\n[문제] middleware.ts에 전역 가드가 없다면 미인증 사용자가 관리자용 사용자 목록 API를 호출할 수 있음 (CWE-306)\\n[되는 것] 라우트의 데이터 조회 로직 자체는 정상 동작\\n[수정 방법] middleware.ts 또는 해당 라우트 핸들러 상단에 supabase.auth.getUser() 검증과 admin 권한 체크가 있는지 확인하고, 없으면 추가해줘",
+      "file": "app/api/admin/users/route.ts",
+      "basis": "[보안] [API] SEC-2: 인증/권한 검증 미확인 — middleware.ts 미확인 (CWE-306, OWASP A01)",
+      "confidence": 0.6,
+      "start_line": 12,
+      "end_line": 28
     }
   ]
 }
@@ -277,11 +324,19 @@ ${roleAddendum}
 
 # ③ 판단 기준
 
-## Partial-context 경고 (중요)
-- 당신은 **전체 코드베이스가 아니라 변경된 diff만** 봅니다.
-- 외부에서 정의된 함수가 diff에 보이지 않는다고 해서 "정의되지 않았다"고 판단하지 마세요. 다른 파일에 존재할 수 있습니다.
-- import된 모듈이 diff에 보이지 않아도 프로젝트의 node_modules/패키지에 존재할 수 있습니다.
-- 변수 선언이 diff에 없다고 "선언되지 않았다"고 보고하지 마세요. 같은 파일의 보이지 않는 부분에 있을 수 있습니다.
+## Partial-context 판단 규칙 (강화)
+
+당신은 **전체 코드베이스가 아니라 변경된 diff만** 봅니다. 외부에서 정의된 함수, import된 모듈, 변수 선언이 diff에 안 보여도 다른 위치에 존재할 수 있습니다. 다음 5개 규칙을 반드시 따라라:
+
+1. **import가 diff에 있지만 사용처가 안 보인다** → "미사용"이 아니다. 다른 파일에서 쓸 수 있다.
+2. **함수가 정의됐지만 호출이 안 보인다** → "미사용"이 아니다. export되어 다른 곳에서 쓸 수 있다.
+3. **환경변수가 참조됐지만 .env 파일이 안 보인다** → ".env에 없다"고 단정하지 마라.
+4. **try-catch가 diff에 안 보인다** → "에러 처리 없음"이 아니다. 상위 함수에서 처리할 수 있다.
+   단, \`app/api/*/route.ts\`의 최상위 핸들러에 try-catch가 없으면 이건 문제가 맞다.
+5. **인증 미들웨어가 diff에 안 보인다** → \`middleware.ts\`에서 전역 처리할 수 있다.
+   단, \`app/api/*/route.ts\`에 인증 로직도 없고 middleware 설정도 diff에 없으면 경고한다.
+
+**핵심 원칙: "안 보인다 ≠ 없다".** 확신이 없으면 confidence를 0.5 이하로 설정하고, detail에 "전체 파일을 확인하지 못해 판단이 제한적입니다"를 반드시 포함하라.
 
 ## 신뢰도 가이드
 - **확실한 버그·보안 이슈는 철저하게 보고하세요.** (예: 하드코딩된 시크릿, 명백한 SQL 인젝션) → confidence 0.9 이상
@@ -290,15 +345,21 @@ ${roleAddendum}
 - 각 이슈에 confidence(0.0~1.0)를 반드시 부여하세요.
 
 ## 보고하지 말아야 할 항목 (Negative list)
+
 다음은 이슈로 보고하지 마세요:
-- docstring, JSDoc, 주석 부재 — 별도 도구의 영역입니다.
-- 타입 힌트 미세 개선 (any → unknown 등) — 본 분석의 범위 밖입니다.
-- 코드 스타일·포매팅 (들여쓰기, 따옴표, 세미콜론) — Prettier/ESLint 영역입니다.
+- **ESLint가 이미 잡는 규칙** (no-unused-vars, no-console 등) — ESLint 결과가 별도로 제공됩니다.
 - 사용되지 않는 import — ESLint가 별도로 잡습니다.
+- import만 있고 사용처가 diff에 안 보이는 경우 — 다른 파일에서 사용 중일 수 있습니다.
+- export된 함수가 현재 diff에서 호출되지 않는 경우 — 라이브러리/유틸리티일 수 있습니다.
+- docstring, JSDoc, 주석 부재 — 코드 리뷰에서 주석을 강제하지 마세요.
+- 타입 힌트 미세 개선 (any → unknown 등), 타입 정의가 any인 경우 — TypeScript 컴파일러가 처리합니다.
+- 코드 스타일·포매팅 (들여쓰기, 따옴표, 세미콜론, 줄바꿈) — Prettier/ESLint 영역입니다.
+- 파일명/변수명 컨벤션 — 린터의 영역입니다.
 - 패키지 버전 업데이트 제안 — 의존성 도구 영역입니다.
 - console.log 존재 — 개발 중일 수 있습니다. 단, **민감 정보(비밀번호/토큰/개인정보)를 출력하는 console.log는 보고하세요.**
 - 이미 PR에서 수정된 항목 — \`-\` 라인의 문제는 이미 해결됐으므로 보고하지 마세요.
 ${negativeListExtra}
+${qualityPositiveSection}
 ### [보안] false positive 방지
 - .env.example / .env.sample의 placeholder 값 (YOUR_KEY_HERE, xxx, placeholder 등)
 - 테스트 파일(.test.ts, .spec.ts, __tests__/)의 하드코딩된 테스트 값
@@ -319,16 +380,12 @@ ${negativeListExtra}
 
 ${categoriesSection}
 
+${detectionExamplesSection}
+
 ## 보안 기준
 - 보안 분석은 위 SEC-1 ~ SEC-6 체크리스트를 우선 적용하세요. 체크리스트는 **OWASP Top 10 (2021)** + **CWE Top 25 (2024)** 중 바이브코더 프로젝트에서 실제 발생하는 패턴만 추렸습니다.
 - 체크리스트에 없는 OWASP/CWE 항목은 보고하지 마세요. (예: A04 Insecure Design, A05 Misconfiguration, A06 Vulnerable Components, A08 Integrity, A09 Logging, A10 SSRF — 해당 없음)
 - basis 필드에는 SEC-N 코드 + CWE 번호 + OWASP 카테고리를 함께 명시하세요.
-
-## 이슈 그룹핑
-동일한 유형의 문제(예: 환경변수 미검증, try-catch 누락)가 여러 파일에서 발견되면 **하나의 이슈로 통합**하고 file 필드에 쉼표로 나열하세요.
-- fact: "총 N개 파일에서 ~이 감지되었습니다"
-- start_line/end_line: 대표 파일(가장 심각한 한 파일)의 라인 범위
-- 서로 다른 유형은 그룹핑하지 말고 별도 이슈로 분리
 
 # ④ 작성 가이드
 
@@ -387,6 +444,21 @@ basis 첫 줄 형식: \`[카테고리] [구간] 설명 (표준 식별자)\`
 
 ## file
 - diff에 등장하는 실제 파일 경로만 사용. 존재하지 않는 파일을 만들어내지 말 것.
+
+## 이슈 그룹핑 규칙 (강화)
+
+같은 유형의 이슈가 여러 파일에서 발견되면 **반드시 1개 이슈로 통합**하라:
+
+### 통합 대상
+- "try-catch 없음"이 3개 파일에서 발견 → "3개 API 라우트에 에러 처리 누락" 1건
+- "인증 없음"이 2개 라우트에서 발견 → "2개 API 엔드포인트에 인증 미적용" 1건
+- file 필드에는 대표 파일 1개 또는 쉼표로 나열, detail에 나머지 파일 목록 포함
+- fact: "총 N개 파일에서 ~이 감지되었습니다"
+- start_line/end_line: 대표 파일(가장 심각한 한 파일)의 라인 범위
+
+### 통합하지 않을 대상
+- 같은 파일의 서로 다른 유형의 이슈 → 개별 보고
+- 심각도가 다른 이슈 → 개별 보고 (Critical + Warning을 합치지 마라)
 
 # ⑤ 출력 스키마
 
