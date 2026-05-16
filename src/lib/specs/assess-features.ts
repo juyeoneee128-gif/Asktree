@@ -2,10 +2,12 @@ import { createClient } from '@supabase/supabase-js';
 import type { Database } from '../supabase/types';
 import { callClaude } from '../analysis/claude-client';
 import { ANALYSIS_MODELS } from '../analysis/models';
+import { getEphemeralSourceFiles } from '../agent/ephemeral';
 import {
   ASSESS_FEATURES_TOOL,
   ASSESS_FEATURES_SYSTEM,
   buildAssessMessage,
+  buildAssessWithSourceMessage,
 } from './prompts';
 
 function createAdminClient() {
@@ -30,12 +32,31 @@ export interface AssessResult {
   };
   token_usage: { input: number; output: number };
   warnings: string[];
+  /** 어떤 근거로 판정했는지 — 디버깅/관측용 */
+  basis: 'source_code' | 'signatures';
+}
+
+export interface AssessFeaturesOptions {
+  /**
+   * full_scan 세션 ID. useSourceCode=true이면 이 세션의 ephemeral_data에서
+   * source_files를 로드하여 코드 기반 판정에 사용.
+   */
+  sessionId?: string;
+  /** true이면 source_files를 우선 근거로 사용. false/미설정이면 기존 시그니처 경로. */
+  useSourceCode?: boolean;
 }
 
 /**
  * 기획서 기능 vs 세션 로그를 대조하여 구현 현황을 판정합니다.
+ *
+ * 판정 근거 우선순위:
+ *   1. useSourceCode=true이고 source_files가 있으면 → 실제 소스코드 기반 (정확도 우선)
+ *   2. 그 외 → 기존 file_signatures + 세션 요약 기반 (fallback)
  */
-export async function assessFeatures(projectId: string): Promise<AssessResult> {
+export async function assessFeatures(
+  projectId: string,
+  options: AssessFeaturesOptions = {}
+): Promise<AssessResult> {
   const supabase = createAdminClient();
   const warnings: string[] = [];
 
@@ -52,6 +73,7 @@ export async function assessFeatures(projectId: string): Promise<AssessResult> {
       stats: { total: 0, implemented: 0, partial: 0, unimplemented: 0, attention: 0, implementation_rate: 0 },
       token_usage: { input: 0, output: 0 },
       warnings: ['No features to assess'],
+      basis: 'signatures',
     };
   }
 
@@ -83,23 +105,43 @@ export async function assessFeatures(projectId: string): Promise<AssessResult> {
     line_count: r.line_count ?? 0,
   }));
 
-  // 3. Claude API 호출
-  const userMessage = buildAssessMessage({
-    features: features.map((f) => ({
-      id: f.id,
-      name: f.name,
-      total_items: f.total_items,
-      prd_summary: f.prd_summary,
-    })),
-    sessions: sessionData,
-    file_signatures: signatures,
-  });
+  // 2.6. source_files 로드 (full_scan 세션에서만)
+  let sourceFiles: { path: string; content: string; line_count: number }[] = [];
+  if (options.useSourceCode && options.sessionId) {
+    try {
+      sourceFiles = await getEphemeralSourceFiles(options.sessionId);
+    } catch (err) {
+      warnings.push(`Failed to load source_files: ${(err as Error).message}`);
+    }
+  }
+
+  const featureInputs = features.map((f) => ({
+    id: f.id,
+    name: f.name,
+    total_items: f.total_items,
+    prd_summary: f.prd_summary,
+  }));
+
+  // 3. Claude API 호출 — 소스코드가 있으면 코드 기반, 없으면 시그니처 기반
+  const useSourceBasis = sourceFiles.length > 0;
+  const userMessage = useSourceBasis
+    ? buildAssessWithSourceMessage({
+        features: featureInputs,
+        sessions: sessionData,
+        source_files: sourceFiles,
+      })
+    : buildAssessMessage({
+        features: featureInputs,
+        sessions: sessionData,
+        file_signatures: signatures,
+      });
 
   const result = await callClaude({
     systemPrompt: ASSESS_FEATURES_SYSTEM,
     userMessage,
     tools: [ASSESS_FEATURES_TOOL],
-    maxTokens: 4096,
+    // 100+ 기능 평가 시 4096은 부족 (109개 × 평균 ~120 토큰 ≈ 13k). 16k로 마진 확보.
+    maxTokens: 16384,
     model: ANALYSIS_MODELS.ASSESS_FEATURES,
   });
 
@@ -174,5 +216,6 @@ export async function assessFeatures(projectId: string): Promise<AssessResult> {
     stats,
     token_usage: result.tokenUsage,
     warnings,
+    basis: useSourceBasis ? 'source_code' : 'signatures',
   };
 }
