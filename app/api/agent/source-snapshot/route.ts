@@ -14,8 +14,23 @@ import {
   deleteEphemeral,
 } from '@/src/lib/agent/ephemeral';
 import { assessFeatures } from '@/src/lib/specs/assess-features';
+import { syncAgentDocs } from '@/src/lib/specs/sync-docs';
+import { extractFeaturesForDocument } from '@/src/lib/specs/extract-features';
+import { dedupeFeaturesForProject } from '@/src/lib/specs/dedupe-features';
 
 const VIRTUAL_SESSION_TITLE = '__source_snapshot__';
+const EXTRACT_CONCURRENCY = 3;
+
+async function runWithConcurrency<T>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<void>
+): Promise<void> {
+  for (let i = 0; i < items.length; i += limit) {
+    const chunk = items.slice(i, i + limit);
+    await Promise.all(chunk.map(fn));
+  }
+}
 
 // POST /api/agent/source-snapshot — 에이전트 부팅 시 1회 호출
 //   전체 소스 파일을 받아 assessFeatures만 실행 (이슈 감지 미실행).
@@ -161,6 +176,90 @@ export async function POST(request: Request) {
 
   const virtualSessionId = virtualSession.id;
 
+  // 8-bis. docs_files 처리 — assessFeatures 전에 spec_features를 채워야 의미 있는 평가 가능.
+  //   멱등성: 이미 spec_features가 1건 이상이면 docs 추출 스킵 (LLM 재실행 비용 차단).
+  //   실패해도 source 분석은 진행 (graceful degradation).
+  let docsSynced = 0;
+  let featuresExtracted = 0;
+  const docsFiles = payload.docs_files ?? [];
+
+  if (docsFiles.length > 0) {
+    const { count: existingFeatureCount, error: countError } = await adminClient
+      .from('spec_features')
+      .select('id', { count: 'exact', head: true })
+      .eq('project_id', payload.project_id);
+
+    if (countError) {
+      console.warn(
+        '[source-snapshot] spec_features count failed:',
+        countError.message
+      );
+    } else if ((existingFeatureCount ?? 0) === 0) {
+      try {
+        const sync = await syncAgentDocs(payload.project_id, docsFiles);
+        if (sync.errors.length > 0) {
+          console.error('[source-snapshot] docs sync errors:', sync.errors);
+        }
+        docsSynced = sync.changed.length;
+        console.log(
+          `[source-snapshot] docs sync: ${sync.changed.length} changed, ${sync.unchanged_count} unchanged, ${sync.deleted_count} deleted`
+        );
+
+        if (sync.changed.length > 0) {
+          await runWithConcurrency(sync.changed, EXTRACT_CONCURRENCY, async (doc) => {
+            try {
+              const result = await extractFeaturesForDocument(
+                payload.project_id,
+                doc.document_id,
+                doc.type,
+                doc.content
+              );
+              if (result.error) {
+                console.error(
+                  `[source-snapshot] extract ${doc.path} failed: ${result.error}`
+                );
+              } else {
+                featuresExtracted += result.features_count;
+                console.log(
+                  `[source-snapshot] extract ${doc.path} → ${result.features_count} features (in ${result.token_usage.input}/out ${result.token_usage.output} tokens)`
+                );
+              }
+            } catch (err) {
+              console.error(
+                `[source-snapshot] extract ${doc.path} threw:`,
+                (err as Error).message
+              );
+            }
+          });
+
+          try {
+            const dedupe = await dedupeFeaturesForProject(payload.project_id);
+            if (dedupe.warnings.length > 0) {
+              console.error('[source-snapshot] dedupe warnings:', dedupe.warnings);
+            }
+            console.log(
+              `[source-snapshot] dedupe: ${dedupe.checked} checked, ${dedupe.marked} marked`
+            );
+          } catch (err) {
+            console.error(
+              '[source-snapshot] dedupe failed:',
+              (err as Error).message
+            );
+          }
+        }
+      } catch (err) {
+        console.error(
+          '[source-snapshot] docs processing failed:',
+          (err as Error).message
+        );
+      }
+    } else {
+      console.log(
+        `[source-snapshot] docs processing skipped — ${existingFeatureCount} existing features (idempotent)`
+      );
+    }
+  }
+
   // 9. ephemeral_data에 source_files 저장 + assessFeatures 실행 + 정리
   //    분석 성공/실패와 무관하게 ephemeral + 가상 세션은 반드시 정리.
   let featuresAssessed = 0;
@@ -239,8 +338,11 @@ export async function POST(request: Request) {
     {
       success: true,
       features_assessed: featuresAssessed,
+      features_extracted: featuresExtracted,
+      docs_synced: docsSynced,
       scan_duration_ms: scanDurationMs,
       source_files_count: payload.source_files.length,
+      docs_files_count: docsFiles.length,
       security: { signature_verified: signatureVerified },
     },
     { status: 201 }

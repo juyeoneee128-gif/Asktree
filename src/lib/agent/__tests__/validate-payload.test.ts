@@ -354,4 +354,71 @@ describe('validateSourceSnapshotPayload (부팅 스캔)', () => {
       expect(result.errors.some((e) => e.includes('must be an array'))).toBe(true);
     }
   });
+
+  describe('docs_files 부가 검증', () => {
+    const okSource = [{ path: 'a.ts', content: 'x', line_count: 1 }];
+    const okDoc = {
+      path: 'docs/prd.md',
+      content: '# PRD',
+      modified_at: '2026-05-16T00:00:00.000Z',
+    };
+
+    it('정상 docs_files를 통과시킨다 (정상)', () => {
+      const result = validateSourceSnapshotPayload({
+        project_id: 'p-1',
+        source_files: okSource,
+        docs_files: [okDoc],
+        metadata: validMeta,
+      });
+      expect(result.valid).toBe(true);
+      if (result.valid) {
+        expect(result.payload.docs_files).toHaveLength(1);
+      }
+    });
+
+    it('docs_files가 누락이어도 통과 (선택 필드 — 엣지)', () => {
+      const result = validateSourceSnapshotPayload({
+        project_id: 'p-1',
+        source_files: okSource,
+        metadata: validMeta,
+      });
+      expect(result.valid).toBe(true);
+      if (result.valid) {
+        expect(result.payload.docs_files).toBeUndefined();
+      }
+    });
+
+    it('docs_files 파일당 200KB 초과 시 거부한다 (에러)', () => {
+      const huge = 'a'.repeat(200_001);
+      const result = validateSourceSnapshotPayload({
+        project_id: 'p-1',
+        source_files: okSource,
+        docs_files: [{ ...okDoc, content: huge }],
+        metadata: validMeta,
+      });
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.includes('exceeds 200000'))).toBe(true);
+      }
+    });
+
+    it('docs_files 전체 합산 1MB 초과 시 거부한다 (에러)', () => {
+      const chunk = 'a'.repeat(150_000);
+      const docs = Array.from({ length: 8 }, (_, i) => ({
+        path: `docs/${i}.md`,
+        content: chunk,
+        modified_at: '2026-05-16T00:00:00.000Z',
+      }));
+      const result = validateSourceSnapshotPayload({
+        project_id: 'p-1',
+        source_files: okSource,
+        docs_files: docs,
+        metadata: validMeta,
+      });
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.includes('total content exceeds'))).toBe(true);
+      }
+    });
+  });
 });

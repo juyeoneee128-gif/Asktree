@@ -65,6 +65,10 @@ export interface AgentPushPayload {
 const MAX_PAYLOAD_SIZE = 12 * 1024 * 1024; // 12MB (full_scan source_files 2MB 수용)
 const MAX_SOURCE_FILE_BYTES = 80_000;       // 파일당 80KB
 const MAX_SOURCE_FILES_TOTAL_BYTES = 2 * 1024 * 1024; // 전체 합산 2MB
+// source-snapshot 부팅 1회용 docs 상한 — push 라우트(60KB/파일)보다 관대.
+// 부팅 시 docs를 함께 수신하므로 한 번에 받을 수 있는 여유를 둠.
+const MAX_SNAPSHOT_DOC_BYTES = 200_000;            // 파일당 200KB
+const MAX_SNAPSHOT_DOCS_TOTAL_BYTES = 1_048_576;   // 전체 합산 1MB
 
 /**
  * 에이전트 push 페이로드를 검증합니다.
@@ -246,6 +250,8 @@ export function validatePayloadSize(rawBody: string): boolean {
 export interface SourceSnapshotPayload {
   project_id: string;
   source_files: SourceFile[];
+  /** 부팅 스캔 시 함께 수신되는 기획서 마크다운. 있으면 서버가 syncAgentDocs + extract를 실행. */
+  docs_files?: DocFile[];
   metadata: {
     agent_version: string;
     pushed_at: string;
@@ -302,6 +308,39 @@ export function validateSourceSnapshotPayload(
     }
   }
 
+  if (obj.docs_files !== undefined) {
+    if (!Array.isArray(obj.docs_files)) {
+      errors.push('docs_files must be an array');
+    } else {
+      let docsTotal = 0;
+      for (let i = 0; i < obj.docs_files.length; i++) {
+        const d = obj.docs_files[i] as Record<string, unknown>;
+        if (!d.path || typeof d.path !== 'string') {
+          errors.push(`docs_files[${i}].path is required`);
+        }
+        if (typeof d.content !== 'string') {
+          errors.push(`docs_files[${i}].content must be a string`);
+        } else if (d.content.length > MAX_SNAPSHOT_DOC_BYTES) {
+          errors.push(
+            `docs_files[${i}].content exceeds ${MAX_SNAPSHOT_DOC_BYTES} bytes (${d.content.length})`
+          );
+        } else {
+          docsTotal += d.content.length;
+        }
+        if (!d.modified_at || typeof d.modified_at !== 'string') {
+          errors.push(`docs_files[${i}].modified_at is required`);
+        } else if (Number.isNaN(Date.parse(d.modified_at))) {
+          errors.push(`docs_files[${i}].modified_at must be a valid ISO date string`);
+        }
+      }
+      if (docsTotal > MAX_SNAPSHOT_DOCS_TOTAL_BYTES) {
+        errors.push(
+          `docs_files total content exceeds ${MAX_SNAPSHOT_DOCS_TOTAL_BYTES} bytes (${docsTotal})`
+        );
+      }
+    }
+  }
+
   if (!obj.metadata || typeof obj.metadata !== 'object') {
     errors.push('metadata is required and must be an object');
   } else {
@@ -321,4 +360,10 @@ export function validateSourceSnapshotPayload(
   return { valid: true, payload: obj as unknown as SourceSnapshotPayload };
 }
 
-export { MAX_PAYLOAD_SIZE, MAX_SOURCE_FILE_BYTES, MAX_SOURCE_FILES_TOTAL_BYTES };
+export {
+  MAX_PAYLOAD_SIZE,
+  MAX_SOURCE_FILE_BYTES,
+  MAX_SOURCE_FILES_TOTAL_BYTES,
+  MAX_SNAPSHOT_DOC_BYTES,
+  MAX_SNAPSHOT_DOCS_TOTAL_BYTES,
+};

@@ -123,10 +123,12 @@ export async function pushSourceSnapshot({
   signingKey,
   projectId,
   sourceFiles,
+  docsFiles,
 }) {
   const payload = {
     project_id: projectId,
     source_files: sourceFiles,
+    ...(docsFiles && docsFiles.length > 0 ? { docs_files: docsFiles } : {}),
     metadata: {
       agent_version: AGENT_VERSION,
       pushed_at: new Date().toISOString(),
@@ -172,6 +174,8 @@ export async function pushSourceSnapshot({
           status: res.status,
           skipped: json?.skipped ?? null,
           featuresAssessed: json?.features_assessed ?? 0,
+          featuresExtracted: json?.features_extracted ?? 0,
+          docsSynced: json?.docs_synced ?? 0,
           scanDurationMs: json?.scan_duration_ms ?? 0,
           sourceFilesCount: json?.source_files_count ?? sourceFiles.length,
         };

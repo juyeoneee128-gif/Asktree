@@ -6,6 +6,7 @@ import { Watcher } from './watcher.js';
 import { State } from './state.js';
 import { collectSession } from './collector.js';
 import { collectSourceFiles } from './source-collector.js';
+import { collectDocs } from './docs-collector.js';
 import { pushSession, pushSourceSnapshot, checkFullScanPending } from './sender.js';
 
 const HOME = homedir();
@@ -140,7 +141,7 @@ async function runBootScanIfNeeded({ config, state, logger }) {
   }
 
   await logger.info(
-    `boot scan: first connection — collecting source files from ${config.projectDir}`
+    `boot scan: first connection — collecting source + docs from ${config.projectDir}`
   );
   const sourceRun = await collectSourceFiles(config.projectDir);
   for (const w of sourceRun.warnings) await logger.warn(w);
@@ -152,13 +153,20 @@ async function runBootScanIfNeeded({ config, state, logger }) {
     return;
   }
 
-  await logger.info(`boot scan: ${sourceRun.files.length} files collected — sending`);
+  // docs/*.md 동시 수집 — 없으면 빈 배열 (정상). 서버는 docs_files가 있을 때만 extract 실행.
+  const docsRun = await collectDocs(config.projectDir);
+  for (const w of docsRun.warnings) await logger.warn(w);
+
+  await logger.info(
+    `boot scan: ${sourceRun.files.length} source + ${docsRun.docs.length} docs collected — sending`
+  );
   const result = await pushSourceSnapshot({
     apiUrl: config.apiUrl,
     token: config.token,
     signingKey: config.signingKey,
     projectId: config.projectId,
     sourceFiles: sourceRun.files,
+    docsFiles: docsRun.docs,
   });
 
   if (result.ok) {
@@ -167,7 +175,7 @@ async function runBootScanIfNeeded({ config, state, logger }) {
       await logger.info(`boot scan: server reported ${result.skipped} — state synced`);
     } else {
       await logger.info(
-        `boot scan: ${result.featuresAssessed} features assessed in ${result.scanDurationMs}ms`
+        `boot scan: ${result.featuresExtracted ?? 0} features extracted, ${result.featuresAssessed} assessed in ${result.scanDurationMs}ms`
       );
     }
   } else {
