@@ -10,6 +10,7 @@ import {
   saveEphemeralDiffs,
   saveEphemeralEslint,
   saveEphemeralFileTree,
+  saveEphemeralSourceFiles,
   cleanupExpiredEphemeral,
 } from '@/src/lib/agent/ephemeral';
 import { runAnalysis } from '@/src/lib/analysis/run-analysis';
@@ -177,7 +178,14 @@ export async function POST(request: Request) {
     });
   }
 
-  // 8. Ephemeral 데이터 저장 (diffs, file_tree, eslint)
+  // 8. Ephemeral 데이터 저장 (diffs, file_tree, eslint, source_files)
+  //    full_scan 모드일 때만 source_files 저장 (분석 후 즉시 파기)
+  const scanMode = payload.metadata.scan_mode ?? 'incremental';
+  const hasSourceFiles =
+    scanMode === 'full' &&
+    Array.isArray(payload.session_data.source_files) &&
+    payload.session_data.source_files.length > 0;
+
   try {
     if (payload.session_data.diffs && payload.session_data.diffs.length > 0) {
       await saveEphemeralDiffs(saved.id, payload.session_data.diffs);
@@ -187,6 +195,9 @@ export async function POST(request: Request) {
     }
     if (payload.session_data.eslint_results && payload.session_data.eslint_results.length > 0) {
       await saveEphemeralEslint(saved.id, payload.session_data.eslint_results);
+    }
+    if (hasSourceFiles) {
+      await saveEphemeralSourceFiles(saved.id, payload.session_data.source_files!);
     }
   } catch (err) {
     console.error('[push] Ephemeral save failed:', (err as Error).message);
@@ -203,11 +214,46 @@ export async function POST(request: Request) {
     }
   }
 
-  // 9. 에이전트 상태 업데이트
+  // 9. 에이전트 상태 업데이트 + full_scan 플래그 처리
   try {
     await updateAgentStatus(payload.project_id);
   } catch (err) {
     console.error('[push] Agent status update failed:', (err as Error).message);
+  }
+
+  // 9.5. first_scan_done / pending_full_scan 처리
+  //   - full_scan으로 도착했고 source_files가 있으면 두 플래그 모두 클리어
+  //   - full_scan이 아직 안 됐다면 (incremental인데 first_scan_done=false) 응답에 알림 — 에이전트가 다음 idle에 full로 재전송
+  let isFirstPush = false;
+  let pendingConsumed = false;
+  try {
+    const adminClient = createClient<Database>(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+    const { data: projRow } = await adminClient
+      .from('projects')
+      .select('first_scan_done, pending_full_scan')
+      .eq('id', payload.project_id)
+      .single();
+
+    if (projRow) {
+      isFirstPush = !projRow.first_scan_done;
+      pendingConsumed = projRow.pending_full_scan;
+
+      if (hasSourceFiles) {
+        await adminClient
+          .from('projects')
+          .update({
+            first_scan_done: true,
+            pending_full_scan: false,
+            pending_full_scan_at: null,
+          })
+          .eq('id', payload.project_id);
+      }
+    }
+  } catch (err) {
+    console.error('[push] full_scan flag handling failed:', (err as Error).message);
   }
 
   // 10. 크레딧 가드 + 자동 파이프라인 트리거
@@ -326,9 +372,11 @@ export async function POST(request: Request) {
         }
 
         // 10b. 분석 — 가드 통과한 경우만 (no_diff 케이스도 ESLint는 runAnalysis 내부에서 처리)
+        //      full_scan + source_files 있으면 'full' 모드로 전환 (소스코드 컨텍스트 활용)
+        const analysisMode = hasSourceFiles ? 'full' : 'problems_only';
         if (runMainAnalysis) {
-          await runAnalysis(payload.project_id, saved.id, 'problems_only', {
-            useLightModel,
+          await runAnalysis(payload.project_id, saved.id, analysisMode, {
+            useLightModel: hasSourceFiles ? false : useLightModel,
             apiKey,
           });
         } else if (hasDiffs && analysisSkipped === 'no_diff') {
@@ -368,7 +416,10 @@ export async function POST(request: Request) {
             console.error('[push] dedupe failed:', (err as Error).message);
           }
 
-          await assessFeatures(payload.project_id);
+          await assessFeatures(payload.project_id, {
+            sessionId: saved.id,
+            useSourceCode: hasSourceFiles,
+          });
         }
       } catch (err) {
         console.error('[push] Auto pipeline failed:', (err as Error).message);
@@ -392,6 +443,12 @@ export async function POST(request: Request) {
 
   const dailyCount = await getDailyCount(payload.project_id).catch(() => 0);
 
+  // 에이전트가 보고 다음 push에 source_files를 포함할지 결정하는 플래그.
+  //   - first_scan은 부팅 시 source-snapshot 라우트가 책임짐 — 여기서는 신경 안 씀.
+  //   - request_full_scan: 사용자가 누른 수동 재분석(pending_full_scan)을 픽업하라고 알려주는 신호.
+  //   - pending_consumed: 이번 push가 pending 요청을 소화했음을 알림 (에이전트 로그용).
+  const requestFullScan = pendingConsumed && !hasSourceFiles;
+
   return NextResponse.json(
     {
       success: true,
@@ -412,6 +469,12 @@ export async function POST(request: Request) {
       analysis_skipped: analysisSkipped,
       security: {
         signature_verified: signatureVerified,
+      },
+      scan: {
+        mode: scanMode,
+        is_first_push: isFirstPush,
+        request_full_scan: requestFullScan,
+        pending_consumed: pendingConsumed && hasSourceFiles,
       },
     },
     { status: 201 }

@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { validatePayload, validatePayloadSize, MAX_PAYLOAD_SIZE } from '../validate-payload';
+import {
+  validatePayload,
+  validatePayloadSize,
+  validateSourceSnapshotPayload,
+  MAX_PAYLOAD_SIZE,
+} from '../validate-payload';
 import { MOCK_PUSH_PAYLOAD } from './mock-jsonl';
 
 describe('validatePayload', () => {
@@ -182,12 +187,171 @@ describe('validatePayload', () => {
 });
 
 describe('validatePayloadSize', () => {
-  it('10MB 이하를 허용한다', () => {
+  it('한도 이하를 허용한다', () => {
     expect(validatePayloadSize('small payload')).toBe(true);
   });
 
-  it('10MB 초과를 거부한다', () => {
+  it('한도 초과를 거부한다', () => {
     const largePayload = 'x'.repeat(MAX_PAYLOAD_SIZE + 1);
     expect(validatePayloadSize(largePayload)).toBe(false);
+  });
+});
+
+describe('source_files 검증 (full_scan)', () => {
+  function withSources(files: unknown, scanMode = 'full') {
+    return {
+      project_id: 'test',
+      session_data: { jsonl_log: 'a', source_files: files },
+      metadata: { agent_version: '1.0', pushed_at: '2026-01-01', scan_mode: scanMode },
+    };
+  }
+
+  it('정상 source_files + scan_mode=full을 통과시킨다', () => {
+    const result = validatePayload(
+      withSources([
+        { path: 'src/auth.ts', content: 'export function login() {}', line_count: 1 },
+      ])
+    );
+    expect(result.valid).toBe(true);
+  });
+
+  it('파일당 80KB 초과 시 거부한다', () => {
+    const big = 'x'.repeat(80_001);
+    const result = validatePayload(
+      withSources([{ path: 'big.ts', content: big, line_count: 1 }])
+    );
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.errors.some((e) => e.includes('exceeds 80000'))).toBe(true);
+    }
+  });
+
+  it('전체 합산 2MB 초과 시 거부한다', () => {
+    // 파일당 70KB × 31 = 2.1MB → 합산 초과
+    const chunk = 'a'.repeat(70_000);
+    const files = Array.from({ length: 31 }, (_, i) => ({
+      path: `f${i}.ts`,
+      content: chunk,
+      line_count: 1,
+    }));
+    const result = validatePayload(withSources(files));
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.errors.some((e) => e.includes('total content exceeds'))).toBe(true);
+    }
+  });
+
+  it('line_count 누락/음수 시 거부한다', () => {
+    const result = validatePayload(
+      withSources([{ path: 'a.ts', content: 'x', line_count: -1 }])
+    );
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.errors.some((e) => e.includes('line_count'))).toBe(true);
+    }
+  });
+
+  it('scan_mode 잘못된 값 거부', () => {
+    const result = validatePayload(withSources([], 'bogus'));
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.errors.some((e) => e.includes('scan_mode'))).toBe(true);
+    }
+  });
+});
+
+describe('validateSourceSnapshotPayload (부팅 스캔)', () => {
+  const validMeta = { agent_version: '0.5.0', pushed_at: '2026-05-16T00:00:00.000Z' };
+
+  it('정상 페이로드를 통과시킨다', () => {
+    const result = validateSourceSnapshotPayload({
+      project_id: 'p-1',
+      source_files: [
+        { path: 'src/auth.ts', content: 'export function login() {}', line_count: 1 },
+      ],
+      metadata: validMeta,
+    });
+    expect(result.valid).toBe(true);
+    if (result.valid) {
+      expect(result.payload.project_id).toBe('p-1');
+      expect(result.payload.source_files).toHaveLength(1);
+    }
+  });
+
+  it('project_id 누락 시 거부한다', () => {
+    const result = validateSourceSnapshotPayload({
+      source_files: [{ path: 'a.ts', content: 'x', line_count: 1 }],
+      metadata: validMeta,
+    });
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.errors.some((e) => e.includes('project_id'))).toBe(true);
+    }
+  });
+
+  it('source_files가 빈 배열이면 거부한다 (적어도 1개 필요)', () => {
+    const result = validateSourceSnapshotPayload({
+      project_id: 'p-1',
+      source_files: [],
+      metadata: validMeta,
+    });
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.errors.some((e) => e.includes('at least 1 file'))).toBe(true);
+    }
+  });
+
+  it('파일당 80KB 초과 시 거부한다', () => {
+    const big = 'x'.repeat(80_001);
+    const result = validateSourceSnapshotPayload({
+      project_id: 'p-1',
+      source_files: [{ path: 'big.ts', content: big, line_count: 1 }],
+      metadata: validMeta,
+    });
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.errors.some((e) => e.includes('exceeds 80000'))).toBe(true);
+    }
+  });
+
+  it('전체 합산 2MB 초과 시 거부한다', () => {
+    const chunk = 'a'.repeat(70_000);
+    const files = Array.from({ length: 31 }, (_, i) => ({
+      path: `f${i}.ts`,
+      content: chunk,
+      line_count: 1,
+    }));
+    const result = validateSourceSnapshotPayload({
+      project_id: 'p-1',
+      source_files: files,
+      metadata: validMeta,
+    });
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.errors.some((e) => e.includes('total content exceeds'))).toBe(true);
+    }
+  });
+
+  it('metadata 누락 시 거부한다', () => {
+    const result = validateSourceSnapshotPayload({
+      project_id: 'p-1',
+      source_files: [{ path: 'a.ts', content: 'x', line_count: 1 }],
+    });
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.errors.some((e) => e.includes('metadata'))).toBe(true);
+    }
+  });
+
+  it('source_files가 배열이 아니면 거부한다', () => {
+    const result = validateSourceSnapshotPayload({
+      project_id: 'p-1',
+      source_files: 'not-array',
+      metadata: validMeta,
+    });
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.errors.some((e) => e.includes('must be an array'))).toBe(true);
+    }
   });
 });

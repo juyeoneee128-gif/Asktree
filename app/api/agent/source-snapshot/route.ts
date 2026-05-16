@@ -1,0 +1,248 @@
+import { NextResponse } from 'next/server';
+import { randomUUID } from 'node:crypto';
+import { createClient } from '@supabase/supabase-js';
+import type { Database } from '@/src/lib/supabase/types';
+import { extractBearerToken, verifyAgentToken } from '@/src/lib/agent/auth-agent';
+import { verifyHmacSignature } from '@/src/lib/agent/verify-signature';
+import {
+  validateSourceSnapshotPayload,
+  validatePayloadSize,
+  MAX_PAYLOAD_SIZE,
+} from '@/src/lib/agent/validate-payload';
+import {
+  saveEphemeralSourceFiles,
+  deleteEphemeral,
+} from '@/src/lib/agent/ephemeral';
+import { assessFeatures } from '@/src/lib/specs/assess-features';
+
+const VIRTUAL_SESSION_TITLE = '__source_snapshot__';
+
+// POST /api/agent/source-snapshot — 에이전트 부팅 시 1회 호출
+//   전체 소스 파일을 받아 assessFeatures만 실행 (이슈 감지 미실행).
+//   가상 세션을 만들어 ephemeral_data FK를 충족시킨 뒤,
+//   분석 완료 후 가상 세션과 ephemeral_data를 모두 정리한다.
+//   첫 스캔은 비용 차감 없음 (1회성, MVP 정책).
+export async function POST(request: Request) {
+  // 1. 토큰 추출
+  const token = extractBearerToken(request.headers.get('authorization'));
+  if (!token) {
+    return NextResponse.json(
+      { error: 'Missing or invalid Authorization header' },
+      { status: 401 }
+    );
+  }
+
+  // 2. 페이로드 크기 확인
+  const rawBody = await request.text();
+  if (!validatePayloadSize(rawBody)) {
+    return NextResponse.json(
+      { error: 'Payload too large', max_size: `${MAX_PAYLOAD_SIZE / 1024 / 1024}MB` },
+      { status: 413 }
+    );
+  }
+
+  // 3. JSON 파싱
+  let body: unknown;
+  try {
+    body = JSON.parse(rawBody);
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+  }
+
+  // 4. 페이로드 검증
+  const validation = validateSourceSnapshotPayload(body);
+  if (!validation.valid) {
+    return NextResponse.json(
+      { error: 'Invalid payload', details: validation.errors },
+      { status: 400 }
+    );
+  }
+
+  const { payload } = validation;
+
+  // 5. 토큰 검증 → project_id 확인
+  const authResult = await verifyAgentToken(token);
+  if (!authResult) {
+    return NextResponse.json({ error: 'Invalid agent token' }, { status: 401 });
+  }
+
+  if (authResult.project_id !== payload.project_id) {
+    return NextResponse.json(
+      { error: 'Agent token does not match project_id' },
+      { status: 403 }
+    );
+  }
+
+  // 6. HMAC 서명 검증 (push 라우트와 동일 정책: 둘 다 없으면 0.3.x 호환 통과)
+  const sigHeader = request.headers.get('x-codesasu-signature');
+  const tsHeader = request.headers.get('x-codesasu-timestamp');
+  let signatureVerified = false;
+
+  if (sigHeader && tsHeader) {
+    const result = verifyHmacSignature(
+      rawBody,
+      sigHeader,
+      tsHeader,
+      authResult.signing_key
+    );
+    if (!result.valid) {
+      return NextResponse.json(
+        { error: 'Invalid signature', reason: result.reason },
+        { status: 401 }
+      );
+    }
+    signatureVerified = true;
+  } else if (sigHeader || tsHeader) {
+    return NextResponse.json(
+      {
+        error:
+          'Malformed signature: both X-CodeSasu-Signature and X-CodeSasu-Timestamp required',
+      },
+      { status: 400 }
+    );
+  } else {
+    console.warn(
+      `[source-snapshot] HMAC headers missing — agent_version=${payload.metadata.agent_version} project=${payload.project_id}`
+    );
+  }
+
+  const adminClient = createClient<Database>(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+
+  // 7. 멱등성 체크 — first_scan_done=true면 short-circuit
+  const { data: projRow, error: projErr } = await adminClient
+    .from('projects')
+    .select('first_scan_done')
+    .eq('id', payload.project_id)
+    .single();
+
+  if (projErr || !projRow) {
+    return NextResponse.json(
+      { error: 'Project not found', detail: projErr?.message },
+      { status: 404 }
+    );
+  }
+
+  if (projRow.first_scan_done) {
+    return NextResponse.json(
+      {
+        success: true,
+        skipped: 'already_scanned',
+        security: { signature_verified: signatureVerified },
+      },
+      { status: 200 }
+    );
+  }
+
+  // 8. 가상 세션 INSERT — ephemeral_data FK 충족용
+  const { data: virtualSession, error: sessionErr } = await adminClient
+    .from('sessions')
+    .insert({
+      project_id: payload.project_id,
+      title: VIRTUAL_SESSION_TITLE,
+      summary: 'Initial source snapshot for feature assessment',
+      raw_log: '',
+      files_changed: 0,
+      changed_files: [],
+      prompts: [],
+      external_session_id: `bootstrap:${randomUUID()}`,
+    })
+    .select('id')
+    .single();
+
+  if (sessionErr || !virtualSession) {
+    return NextResponse.json(
+      { error: 'Failed to create virtual session', detail: sessionErr?.message },
+      { status: 500 }
+    );
+  }
+
+  const virtualSessionId = virtualSession.id;
+
+  // 9. ephemeral_data에 source_files 저장 + assessFeatures 실행 + 정리
+  //    분석 성공/실패와 무관하게 ephemeral + 가상 세션은 반드시 정리.
+  let featuresAssessed = 0;
+  let scanDurationMs = 0;
+  let assessError: string | null = null;
+
+  try {
+    await saveEphemeralSourceFiles(virtualSessionId, payload.source_files);
+
+    const t0 = Date.now();
+    const assess = await assessFeatures(payload.project_id, {
+      sessionId: virtualSessionId,
+      useSourceCode: true,
+    });
+    scanDurationMs = Date.now() - t0;
+    featuresAssessed = assess.assessed_count;
+
+    if (assess.warnings.length > 0) {
+      console.warn('[source-snapshot] assess warnings:', assess.warnings);
+    }
+  } catch (err) {
+    assessError = (err as Error).message;
+    console.error('[source-snapshot] assessFeatures failed:', assessError);
+  } finally {
+    // ephemeral_data 삭제 (cascade는 사용하지 않음 — 명시적 정리)
+    try {
+      await deleteEphemeral(virtualSessionId);
+    } catch (err) {
+      console.warn(
+        '[source-snapshot] ephemeral cleanup failed:',
+        (err as Error).message
+      );
+    }
+    // 가상 세션 삭제 (프론트엔드 세션 리스트에 노이즈 0)
+    try {
+      await adminClient.from('sessions').delete().eq('id', virtualSessionId);
+    } catch (err) {
+      console.warn(
+        '[source-snapshot] virtual session cleanup failed:',
+        (err as Error).message
+      );
+    }
+  }
+
+  // 10. assessFeatures 실패 시 first_scan_done은 갱신하지 않음 — 다음 부팅에 재시도
+  if (assessError) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'assessFeatures failed',
+        detail: assessError,
+        security: { signature_verified: signatureVerified },
+      },
+      { status: 500 }
+    );
+  }
+
+  // 11. first_scan_done 마킹 + pending_full_scan 클리어
+  try {
+    await adminClient
+      .from('projects')
+      .update({
+        first_scan_done: true,
+        pending_full_scan: false,
+        pending_full_scan_at: null,
+      })
+      .eq('id', payload.project_id);
+  } catch (err) {
+    console.error(
+      '[source-snapshot] first_scan_done update failed:',
+      (err as Error).message
+    );
+  }
+
+  return NextResponse.json(
+    {
+      success: true,
+      features_assessed: featuresAssessed,
+      scan_duration_ms: scanDurationMs,
+      source_files_count: payload.source_files.length,
+      security: { signature_verified: signatureVerified },
+    },
+    { status: 201 }
+  );
+}

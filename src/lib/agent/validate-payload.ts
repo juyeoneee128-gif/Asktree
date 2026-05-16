@@ -32,6 +32,17 @@ export interface DocFile {
   modified_at: string; // ISO 타임스탬프 (파일 mtime)
 }
 
+/**
+ * 전체 스캔(full_scan) 시 에이전트가 수집한 소스 파일.
+ * agent/source-collector.js 출력 형식과 일치.
+ * 분석 후 즉시 파기 (Ephemeral Processing).
+ */
+export interface SourceFile {
+  path: string;        // POSIX 슬래시, 프로젝트 루트 기준 상대 경로
+  content: string;     // 최대 80KB (파일당 500줄 컷)
+  line_count: number;
+}
+
 export interface AgentPushPayload {
   project_id: string;
   session_data: {
@@ -40,16 +51,20 @@ export interface AgentPushPayload {
     diffs?: DiffEntry[];
     eslint_results?: EslintIssueRaw[];
     docs_files?: DocFile[];
+    source_files?: SourceFile[];
   };
   metadata: {
     agent_version: string;
     pushed_at: string;
     cli_version?: string;
     entrypoint?: string;
+    scan_mode?: 'full' | 'incremental';
   };
 }
 
-const MAX_PAYLOAD_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_PAYLOAD_SIZE = 12 * 1024 * 1024; // 12MB (full_scan source_files 2MB 수용)
+const MAX_SOURCE_FILE_BYTES = 80_000;       // 파일당 80KB
+const MAX_SOURCE_FILES_TOTAL_BYTES = 2 * 1024 * 1024; // 전체 합산 2MB
 
 /**
  * 에이전트 push 페이로드를 검증합니다.
@@ -136,6 +151,37 @@ export function validatePayload(
       }
     }
 
+    if (sd.source_files !== undefined) {
+      if (!Array.isArray(sd.source_files)) {
+        errors.push('session_data.source_files must be an array');
+      } else {
+        let totalBytes = 0;
+        for (let i = 0; i < sd.source_files.length; i++) {
+          const f = sd.source_files[i] as Record<string, unknown>;
+          if (!f.path || typeof f.path !== 'string') {
+            errors.push(`session_data.source_files[${i}].path is required`);
+          }
+          if (typeof f.content !== 'string') {
+            errors.push(`session_data.source_files[${i}].content must be a string`);
+          } else if (f.content.length > MAX_SOURCE_FILE_BYTES) {
+            errors.push(
+              `session_data.source_files[${i}].content exceeds ${MAX_SOURCE_FILE_BYTES} bytes (${f.content.length})`
+            );
+          } else {
+            totalBytes += f.content.length;
+          }
+          if (typeof f.line_count !== 'number' || f.line_count < 0) {
+            errors.push(`session_data.source_files[${i}].line_count must be a non-negative number`);
+          }
+        }
+        if (totalBytes > MAX_SOURCE_FILES_TOTAL_BYTES) {
+          errors.push(
+            `session_data.source_files total content exceeds ${MAX_SOURCE_FILES_TOTAL_BYTES} bytes (${totalBytes})`
+          );
+        }
+      }
+    }
+
     if (sd.eslint_results !== undefined) {
       if (!Array.isArray(sd.eslint_results)) {
         errors.push('session_data.eslint_results must be an array');
@@ -177,6 +223,9 @@ export function validatePayload(
     if (!md.pushed_at || typeof md.pushed_at !== 'string') {
       errors.push('metadata.pushed_at is required');
     }
+    if (md.scan_mode !== undefined && md.scan_mode !== 'full' && md.scan_mode !== 'incremental') {
+      errors.push("metadata.scan_mode must be 'full' or 'incremental'");
+    }
   }
 
   if (errors.length > 0) {
@@ -194,4 +243,82 @@ export function validatePayloadSize(rawBody: string): boolean {
   return byteSize <= MAX_PAYLOAD_SIZE;
 }
 
-export { MAX_PAYLOAD_SIZE };
+export interface SourceSnapshotPayload {
+  project_id: string;
+  source_files: SourceFile[];
+  metadata: {
+    agent_version: string;
+    pushed_at: string;
+  };
+}
+
+/**
+ * 에이전트 부팅 시 전송하는 source-snapshot 페이로드를 검증합니다.
+ * push 라우트와 달리 jsonl_log/diffs/eslint/docs 없음 — 순수 소스 파일 + 메타.
+ */
+export function validateSourceSnapshotPayload(
+  body: unknown
+): { valid: true; payload: SourceSnapshotPayload } | { valid: false; errors: string[] } {
+  const errors: string[] = [];
+
+  if (!body || typeof body !== 'object') {
+    return { valid: false, errors: ['Request body must be a JSON object'] };
+  }
+
+  const obj = body as Record<string, unknown>;
+
+  if (!obj.project_id || typeof obj.project_id !== 'string') {
+    errors.push('project_id is required and must be a string');
+  }
+
+  if (!Array.isArray(obj.source_files)) {
+    errors.push('source_files is required and must be an array');
+  } else if (obj.source_files.length === 0) {
+    errors.push('source_files must contain at least 1 file');
+  } else {
+    let totalBytes = 0;
+    for (let i = 0; i < obj.source_files.length; i++) {
+      const f = obj.source_files[i] as Record<string, unknown>;
+      if (!f.path || typeof f.path !== 'string') {
+        errors.push(`source_files[${i}].path is required`);
+      }
+      if (typeof f.content !== 'string') {
+        errors.push(`source_files[${i}].content must be a string`);
+      } else if (f.content.length > MAX_SOURCE_FILE_BYTES) {
+        errors.push(
+          `source_files[${i}].content exceeds ${MAX_SOURCE_FILE_BYTES} bytes (${f.content.length})`
+        );
+      } else {
+        totalBytes += f.content.length;
+      }
+      if (typeof f.line_count !== 'number' || f.line_count < 0) {
+        errors.push(`source_files[${i}].line_count must be a non-negative number`);
+      }
+    }
+    if (totalBytes > MAX_SOURCE_FILES_TOTAL_BYTES) {
+      errors.push(
+        `source_files total content exceeds ${MAX_SOURCE_FILES_TOTAL_BYTES} bytes (${totalBytes})`
+      );
+    }
+  }
+
+  if (!obj.metadata || typeof obj.metadata !== 'object') {
+    errors.push('metadata is required and must be an object');
+  } else {
+    const md = obj.metadata as Record<string, unknown>;
+    if (!md.agent_version || typeof md.agent_version !== 'string') {
+      errors.push('metadata.agent_version is required');
+    }
+    if (!md.pushed_at || typeof md.pushed_at !== 'string') {
+      errors.push('metadata.pushed_at is required');
+    }
+  }
+
+  if (errors.length > 0) {
+    return { valid: false, errors };
+  }
+
+  return { valid: true, payload: obj as unknown as SourceSnapshotPayload };
+}
+
+export { MAX_PAYLOAD_SIZE, MAX_SOURCE_FILE_BYTES, MAX_SOURCE_FILES_TOTAL_BYTES };
