@@ -20,6 +20,25 @@ function createAdminClient() {
 type FeatureStatus = 'implemented' | 'partial' | 'unimplemented' | 'attention';
 const VALID_STATUSES = new Set<string>(['implemented', 'partial', 'unimplemented', 'attention']);
 
+/**
+ * 한 번의 callClaude 호출이 안정적으로 응답할 수 있는 feature 수 상한.
+ * 100+ 기능에서는 단일 호출 출력 토큰이 16k를 초과해 잘리므로 chunk로 분할 호출한다.
+ */
+export const ASSESS_CHUNK_SIZE = 50;
+
+/**
+ * 임의의 배열을 chunkSize 단위로 분할. chunk 분할 로직이 회귀 없이 동작하는지
+ * 단위 테스트로 보호 (assess-features 내부의 LLM 호출과 무관하게 검증 가능).
+ */
+export function chunkFeatures<T>(items: T[], chunkSize: number): T[][] {
+  if (chunkSize <= 0) throw new Error('chunkSize must be positive');
+  const chunks: T[][] = [];
+  for (let i = 0; i < items.length; i += chunkSize) {
+    chunks.push(items.slice(i, i + chunkSize));
+  }
+  return chunks;
+}
+
 export interface AssessResult {
   assessed_count: number;
   stats: {
@@ -122,68 +141,79 @@ export async function assessFeatures(
     prd_summary: f.prd_summary,
   }));
 
-  // 3. Claude API 호출 — 소스코드가 있으면 코드 기반, 없으면 시그니처 기반
+  // 3. Claude API 호출 — features를 ASSESS_CHUNK_SIZE 단위로 분할하여 순차 호출.
+  //    100+ 기능이면 단일 호출 출력 토큰이 16k를 초과해 잘리므로 chunk 분할이 필수.
+  //    각 chunk는 system 프롬프트를 공유(ephemeral cache) → 2~3번째 호출은 캐시 hit.
   const useSourceBasis = sourceFiles.length > 0;
-  const userMessage = useSourceBasis
-    ? buildAssessWithSourceMessage({
-        features: featureInputs,
-        sessions: sessionData,
-        source_files: sourceFiles,
-      })
-    : buildAssessMessage({
-        features: featureInputs,
-        sessions: sessionData,
-        file_signatures: signatures,
-      });
+  const featureChunks = chunkFeatures(featureInputs, ASSESS_CHUNK_SIZE);
 
-  const result = await callClaude({
-    systemPrompt: ASSESS_FEATURES_SYSTEM,
-    userMessage,
-    tools: [ASSESS_FEATURES_TOOL],
-    // 100+ 기능 평가 시 4096은 부족 (109개 × 평균 ~120 토큰 ≈ 13k). 16k로 마진 확보.
-    maxTokens: 16384,
-    model: ANALYSIS_MODELS.ASSESS_FEATURES,
-  });
-
-  // 4. 응답 파싱 + UPDATE
   let assessedCount = 0;
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
   const featureIds = new Set(features.map((f) => f.id));
 
-  for (const input of result.toolInputs) {
-    const assessments = input.assessments;
-    if (!Array.isArray(assessments)) continue;
-
-    for (const raw of assessments) {
-      const a = raw as Record<string, unknown>;
-      const featureId = a.feature_id as string;
-      const status = a.status as string;
-
-      if (!featureIds.has(featureId)) {
-        warnings.push(`Unknown feature_id: ${featureId}`);
-        continue;
-      }
-
-      if (!VALID_STATUSES.has(status)) {
-        warnings.push(`Invalid status "${status}" for feature ${featureId}`);
-        continue;
-      }
-
-      const implementedItems = Array.isArray(a.implemented_items) ? a.implemented_items : [];
-      const relatedFiles = Array.isArray(a.related_files) ? a.related_files : [];
-
-      const { error } = await supabase
-        .from('spec_features')
-        .update({
-          status: status as FeatureStatus,
-          implemented_items: implementedItems as Database['public']['Tables']['spec_features']['Update']['implemented_items'],
-          related_files: relatedFiles as Database['public']['Tables']['spec_features']['Update']['related_files'],
+  for (const chunk of featureChunks) {
+    const userMessage = useSourceBasis
+      ? buildAssessWithSourceMessage({
+          features: chunk,
+          sessions: sessionData,
+          source_files: sourceFiles,
         })
-        .eq('id', featureId);
+      : buildAssessMessage({
+          features: chunk,
+          sessions: sessionData,
+          file_signatures: signatures,
+        });
 
-      if (error) {
-        warnings.push(`Failed to update feature ${featureId}: ${error.message}`);
-      } else {
-        assessedCount++;
+    const result = await callClaude({
+      systemPrompt: ASSESS_FEATURES_SYSTEM,
+      userMessage,
+      tools: [ASSESS_FEATURES_TOOL],
+      // chunk당 50개 ≤ ~7.5k 출력 토큰. 16k면 충분한 마진.
+      maxTokens: 16384,
+      model: ANALYSIS_MODELS.ASSESS_FEATURES,
+    });
+
+    totalInputTokens += result.tokenUsage.input;
+    totalOutputTokens += result.tokenUsage.output;
+
+    // 4. 응답 파싱 + UPDATE — chunk별로 동일 로직, 결과 누적
+    for (const input of result.toolInputs) {
+      const assessments = input.assessments;
+      if (!Array.isArray(assessments)) continue;
+
+      for (const raw of assessments) {
+        const a = raw as Record<string, unknown>;
+        const featureId = a.feature_id as string;
+        const status = a.status as string;
+
+        if (!featureIds.has(featureId)) {
+          warnings.push(`Unknown feature_id: ${featureId}`);
+          continue;
+        }
+
+        if (!VALID_STATUSES.has(status)) {
+          warnings.push(`Invalid status "${status}" for feature ${featureId}`);
+          continue;
+        }
+
+        const implementedItems = Array.isArray(a.implemented_items) ? a.implemented_items : [];
+        const relatedFiles = Array.isArray(a.related_files) ? a.related_files : [];
+
+        const { error } = await supabase
+          .from('spec_features')
+          .update({
+            status: status as FeatureStatus,
+            implemented_items: implementedItems as Database['public']['Tables']['spec_features']['Update']['implemented_items'],
+            related_files: relatedFiles as Database['public']['Tables']['spec_features']['Update']['related_files'],
+          })
+          .eq('id', featureId);
+
+        if (error) {
+          warnings.push(`Failed to update feature ${featureId}: ${error.message}`);
+        } else {
+          assessedCount++;
+        }
       }
     }
   }
@@ -214,7 +244,7 @@ export async function assessFeatures(
   return {
     assessed_count: assessedCount,
     stats,
-    token_usage: result.tokenUsage,
+    token_usage: { input: totalInputTokens, output: totalOutputTokens },
     warnings,
     basis: useSourceBasis ? 'source_code' : 'signatures',
   };
