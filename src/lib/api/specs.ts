@@ -53,10 +53,16 @@ function toSpecDocument(row: SpecDocumentRow): SpecDocument {
   };
 }
 
-function normalizeImplementedItems(raw: unknown): FeatureItem[] {
+export function normalizeImplementedItems(raw: unknown): FeatureItem[] {
   if (!Array.isArray(raw)) return [];
   return raw
     .map((entry): FeatureItem | null => {
+      // LLM이 반환하는 실제 형식 — 단순 문자열 배열.
+      // 프롬프트가 "구현이 확인된 항목만 나열"하라고 강제하므로 checked는 항상 true.
+      if (typeof entry === 'string') {
+        return { name: entry, checked: true };
+      }
+      // mock/옛 데이터 호환 — {name, line?, checked} 객체 형식.
       if (
         entry &&
         typeof entry === 'object' &&
