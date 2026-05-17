@@ -17,6 +17,7 @@ import { assessFeatures } from '@/src/lib/specs/assess-features';
 import { syncAgentDocs } from '@/src/lib/specs/sync-docs';
 import { extractFeaturesForDocument } from '@/src/lib/specs/extract-features';
 import { dedupeFeaturesForProject } from '@/src/lib/specs/dedupe-features';
+import { shouldBackfillFeatures } from '@/src/lib/agent/backfill-decision';
 
 const VIRTUAL_SESSION_TITLE = '__source_snapshot__';
 const EXTRACT_CONCURRENCY = 3;
@@ -216,12 +217,12 @@ export async function POST(request: Request) {
         '[source-snapshot] spec_features count failed:',
         countError.message
       );
-    } else if ((existingFeatureCount ?? 0) === 0 || legacyFeatureCount > 0) {
-      // backfill: expected_items 비어있는 row만 선택 삭제 — 채워진 row는 보존.
+    } else if (shouldBackfillFeatures(existingFeatureCount, legacyFeatureCount)) {
+      console.log(
+        `[source-snapshot] backfill triggered: existing=${existingFeatureCount ?? 0} legacy=${legacyFeatureCount}`
+      );
+      // legacy row가 있으면 그것만 선택 삭제 — 채워진 row는 보존.
       if (legacyFeatureCount > 0) {
-        console.log(
-          `[source-snapshot] backfill: ${legacyFeatureCount} features without expected_items — deleting and re-extracting`
-        );
         const { error: delErr } = await adminClient
           .from('spec_features')
           .delete()
@@ -229,7 +230,11 @@ export async function POST(request: Request) {
         if (delErr) {
           console.error('[source-snapshot] legacy delete failed:', delErr.message);
         }
-        // spec_documents.content_hash을 null로 만들어 syncAgentDocs가 changed로 인식하도록 강제.
+      }
+      // spec_documents.content_hash을 null로 만들어 syncAgentDocs가 강제로 changed 분기를 타도록.
+      // 이 단계가 없으면 existingFeatureCount===0(수동 삭제) 케이스에서 모든 doc이 unchanged로
+      // 판정되어 extract가 단 한 번도 호출되지 않고 "No features to assess"로 끝난다.
+      {
         const { error: hashErr } = await adminClient
           .from('spec_documents')
           .update({ content_hash: null })
