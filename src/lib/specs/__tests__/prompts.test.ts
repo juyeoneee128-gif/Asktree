@@ -10,6 +10,9 @@ import {
   buildAssessMessage,
   buildReverseIAMessage,
   formatSignaturesSection,
+  extractFeatureKeywords,
+  matchSourcesByKeywords,
+  buildAssessWithSourceMessage,
 } from '../prompts';
 
 describe('도구 스키마', () => {
@@ -69,6 +72,23 @@ describe('시스템 프롬프트', () => {
     expect(ASSESS_FEATURES_SYSTEM).toContain('partial');
     expect(ASSESS_FEATURES_SYSTEM).toContain('unimplemented');
     expect(ASSESS_FEATURES_SYSTEM).toContain('attention');
+  });
+
+  it('판정 프롬프트의 implemented 정의가 implemented_items 작성을 명시한다 (정상)', () => {
+    // implemented 상태에서 빈 배열을 반환하는 회귀를 막기 위한 키워드 검증.
+    expect(ASSESS_FEATURES_SYSTEM).toContain('implemented_items');
+    expect(ASSESS_FEATURES_SYSTEM).toMatch(/implemented[\s\S]*소스코드[\s\S]*세부/);
+  });
+
+  it('판정 프롬프트가 implemented/partial에서 빈 배열을 금지한다 (경계)', () => {
+    expect(ASSESS_FEATURES_SYSTEM).toContain('빈 배열');
+    expect(ASSESS_FEATURES_SYSTEM).toMatch(/implemented[\s\S]*partial[\s\S]*빈 배열[\s\S]*허용하지 않음/);
+  });
+
+  it('판정 프롬프트에 implemented_items 작성 예시가 포함되어 있다 (회귀 보호)', () => {
+    // 예시 텍스트는 형식 학습용 — 정확 매칭은 피하고 핵심 키워드만 검증.
+    expect(ASSESS_FEATURES_SYSTEM).toContain('예시');
+    expect(ASSESS_FEATURES_SYSTEM).toContain('사용자 인증');
   });
 
   it('Reverse IA 프롬프트에 역추출 지시가 포함되어 있다', () => {
@@ -232,5 +252,83 @@ describe('ASSESS_FEATURES_SYSTEM — 시그니처 강화', () => {
     expect(ASSESS_FEATURES_SYSTEM).toContain('partial');
     expect(ASSESS_FEATURES_SYSTEM).toContain('unimplemented');
     expect(ASSESS_FEATURES_SYSTEM).toContain('attention');
+  });
+});
+
+describe('소스코드 기반 판정 (full_scan)', () => {
+  describe('extractFeatureKeywords', () => {
+    it('한국어 기능명에서 매핑 사전을 통해 영문 키워드를 추출한다', () => {
+      const k = extractFeatureKeywords('소셜 로그인');
+      expect(k).toContain('login');
+      expect(k).toContain('signin');
+    });
+
+    it('영문 기능명은 토큰 자체를 키워드로 사용한다', () => {
+      const k = extractFeatureKeywords('OAuth Callback');
+      expect(k).toContain('oauth');
+      expect(k).toContain('callback');
+    });
+
+    it('매핑 사전에 없고 영문도 아닐 때 fallback으로 정규화 이름을 쓴다', () => {
+      const k = extractFeatureKeywords('zzz-기능');
+      // 'zzz'는 영문 토큰으로 추출되거나 fallback으로 'zzz'
+      expect(k.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe('matchSourcesByKeywords', () => {
+    const sources = [
+      { path: 'src/auth/login.ts', content: 'export function login() {}', line_count: 10 },
+      { path: 'src/billing/stripe.ts', content: 'stripe.charges.create()', line_count: 50 },
+      { path: 'src/utils/x.ts', content: 'noop', line_count: 5 },
+    ];
+
+    it('path에 키워드가 등장하면 매칭한다', () => {
+      const matched = matchSourcesByKeywords(['login'], sources);
+      expect(matched.length).toBe(1);
+      expect(matched[0].path).toBe('src/auth/login.ts');
+    });
+
+    it('content에 키워드가 등장해도 매칭한다', () => {
+      const matched = matchSourcesByKeywords(['stripe'], sources);
+      expect(matched.map((m) => m.path)).toContain('src/billing/stripe.ts');
+    });
+
+    it('line_count 작은 순으로 정렬되어 반환된다', () => {
+      const matched = matchSourcesByKeywords(['noop', 'login', 'stripe'], sources, 10);
+      expect(matched[0].line_count).toBeLessThanOrEqual(matched[matched.length - 1].line_count);
+    });
+
+    it('빈 키워드는 빈 배열을 반환한다', () => {
+      expect(matchSourcesByKeywords([], sources)).toEqual([]);
+    });
+  });
+
+  describe('buildAssessWithSourceMessage', () => {
+    it('기능 ↔ 파일 매칭 표와 소스 섹션을 포함한다', () => {
+      const msg = buildAssessWithSourceMessage({
+        features: [{ id: 'f1', name: '소셜 로그인', total_items: 2, prd_summary: 'OAuth' }],
+        sessions: [{ title: '인증 작업', summary: null, changed_files: ['src/auth/login.ts'] }],
+        source_files: [
+          { path: 'src/auth/login.ts', content: 'export function login() { return true; }', line_count: 1 },
+        ],
+      });
+      expect(msg).toContain('## 기능 목록');
+      expect(msg).toContain('## 기능 ↔ 파일 매칭');
+      expect(msg).toContain('## 관련 소스 파일');
+      expect(msg).toContain('src/auth/login.ts');
+      expect(msg).toContain('export function login()');
+    });
+
+    it('매칭 파일 없으면 안내 메시지를 표시한다', () => {
+      const msg = buildAssessWithSourceMessage({
+        features: [{ id: 'f1', name: '결제', total_items: 1, prd_summary: null }],
+        sessions: [],
+        source_files: [
+          { path: 'src/foo/bar.ts', content: 'noop', line_count: 1 },
+        ],
+      });
+      expect(msg).toContain('매칭된 소스 파일 없음');
+    });
   });
 });

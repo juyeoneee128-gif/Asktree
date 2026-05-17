@@ -155,14 +155,22 @@ document_type이 "prd" 또는 "spec"인 경우에만 기능을 추출하라.
 - 고유명사(제품명, 외부 서비스명 등)가 아닌 일반 기술 용어는 모두 한국어로 번역하세요.`;
 
 export const ASSESS_FEATURES_SYSTEM = `당신은 코드 구현 현황 판정 전문가입니다.
-기획서의 기능 목록과 실제 코드(파일 시그니처 + 세션 로그)를 비교하여
+기획서의 기능 목록과 실제 코드(소스코드 또는 파일 시그니처 + 세션 로그)를 비교하여
 각 기능의 구현 상태를 판정하세요.
 결과를 report_assessment 도구로 보고하세요.
+
+## 근거 우선순위
+
+1. **소스코드 (가장 강력)**: "## 관련 소스 파일" 섹션이 있으면 그것을 1순위 근거로 사용.
+   파일명 추정이 아닌 실제 함수 본문/라우트 핸들러/렌더링 흐름을 직접 확인하라.
+2. **파일 시그니처**: 소스코드가 없을 때 fallback. 패턴 부재가 더 강한 신호.
+3. **세션 로그**: 보조 컨텍스트. 단독 근거로 사용 금지.
 
 ## 입력 데이터
 
 - **기능 목록**: 기획서에서 추출한 기능 ID/이름/요구사항 요약
 - **세션 로그**: AI가 수행한 작업 제목·요약·변경 파일 (시간순)
+- **관련 소스 파일** (있을 경우): 기능 키워드로 매칭된 실제 파일 본문
 - **파일 시그니처** (있을 경우): 파일별 functions/imports/exports/patterns/line_count 누적
   - 두 경로에서 누적됨: 정적 분석 LLM(diff 기반) + 세션 로그 정규식(Read tool 기반)
   - 합집합 머지이므로 stale 함수가 남아있을 수 있음 — 패턴 부재가 더 강한 신호
@@ -185,10 +193,21 @@ export const ASSESS_FEATURES_SYSTEM = `당신은 코드 구현 현황 판정 전
 - 파일만 생성되고 내용이 채워진 근거가 없다면 'unimplemented' 또는 'partial'
 
 ## status 값 정의
-- **implemented**: 전체 구현. related_files에 관련 파일 포함.
+- **implemented**: 전체 구현. implemented_items에 소스코드와 prd_summary에서 확인된 세부 구현 항목들을 구체적으로 나열하라. related_files에 관련 파일 포함.
 - **partial**: 일부 구현. implemented_items에 구현된 항목만 나열.
 - **unimplemented**: 미구현. implemented_items는 빈 배열.
 - **attention**: 구현되었으나 기획서와 다르거나 누락된 부분이 있어 사람 확인이 필요.
+
+## implemented_items 작성 규칙
+- **implemented 상태**: prd_summary와 소스코드에서 확인된 모든 세부 동작을 나열
+- **partial 상태**: 구현이 확인된 항목만 나열
+- **unimplemented 상태**: 빈 배열
+- **implemented/partial에서 빈 배열은 허용하지 않음** — 채울 항목이 정말 없으면 status를 attention으로 바꾸어라
+
+### 예시
+'사용자 인증' 기능이 implemented이면:
+  implemented_items: ['이메일 로그인', '소셜 로그인(Google)', '세션 관리', '로그아웃']
+처럼 실제 소스코드에서 확인된 동작을 1줄 1항목으로 나열한다.
 
 ## 규칙
 - 모든 feature_id에 대해 판정 결과를 반환하세요
@@ -305,6 +324,190 @@ function formatSignatureBlock(sig: AssessFileSignature): string {
   if (sig.exports.length > 0) parts.push(`  exports: ${sig.exports.join(', ')}`);
   if (sig.patterns.length > 0) parts.push(`  patterns: ${sig.patterns.join(', ')}`);
   return parts.join('\n');
+}
+
+// ─── 소스코드 기반 판정 (full_scan 경로) ───
+
+export interface AssessSourceFile {
+  path: string;
+  content: string;
+  line_count: number;
+}
+
+export interface AssessWithSourceInput {
+  features: { id: string; name: string; total_items: number; prd_summary: string | null }[];
+  sessions: { title: string; summary: string | null; changed_files: string[] }[];
+  source_files: AssessSourceFile[];
+}
+
+/**
+ * 소스코드 기반 메시지의 토큰 예산. 약 100K char ≈ 25K token — Sonnet 200K 한도의 1/8.
+ * 시스템 프롬프트 + 도구 정의 + 응답 여유를 고려한 보수적 수치.
+ */
+const SOURCE_MESSAGE_MAX_CHARS = 100_000;
+
+/**
+ * 기능명 → 검색 키워드 변환 사전.
+ * 한국어 기능명에 자주 등장하는 단어 → 영문 코드 패턴 후보로 매핑.
+ * 매칭은 키워드 OR 조건. 사전에 없으면 기능명 자체를 키워드로 사용.
+ */
+const KEYWORD_MAP: Record<string, string[]> = {
+  인증: ['auth', 'login', 'signin', 'signup', 'session'],
+  로그인: ['login', 'signin', 'oauth'],
+  회원가입: ['signup', 'register', 'create.*user'],
+  결제: ['payment', 'billing', 'stripe', 'checkout', 'charge'],
+  알림: ['notif', 'toast', 'alert'],
+  분석: ['analy', 'detect', 'scan'],
+  세션: ['session'],
+  이슈: ['issue', 'problem'],
+  보호: ['guideline', 'rule', 'protect'],
+  설정: ['setting', 'config', 'preference'],
+  대시보드: ['dashboard'],
+  프로젝트: ['project'],
+  파일: ['file', 'upload', 'storage'],
+  크레딧: ['credit', 'usage', 'quota'],
+  검색: ['search', 'query', 'filter'],
+  업로드: ['upload', 'multer', 'formdata'],
+  다운로드: ['download', 'export'],
+  댓글: ['comment'],
+  게시: ['post', 'publish'],
+  태그: ['tag'],
+  사용자: ['user', 'account', 'profile'],
+  계정: ['account', 'user', 'profile'],
+  권한: ['permission', 'role', 'access', 'rls'],
+  암호화: ['encrypt', 'crypto', 'pgcrypto', 'aes'],
+  api: ['api', 'route', 'endpoint', 'handler'],
+  데이터베이스: ['db', 'supabase', 'postgres', 'migration'],
+  마이그레이션: ['migration', '\\.sql'],
+  온보딩: ['onboarding', 'welcome'],
+  랜딩: ['landing', 'marketing'],
+  기획서: ['spec', 'prd', 'feature'],
+  현황: ['status', 'progress', 'metric'],
+  로그: ['log', 'audit'],
+};
+
+/**
+ * 기능명에서 검색 키워드 목록을 추출합니다.
+ * 1. 공백/조사 제거 → 토큰화
+ * 2. KEYWORD_MAP에서 매핑된 영문 키워드 + 토큰 자체(영문 소문자)
+ * 3. 최소 1자 이상 + 한글/영문만
+ */
+export function extractFeatureKeywords(name: string): string[] {
+  const keywords = new Set<string>();
+  const tokens = name
+    .toLowerCase()
+    .replace(/[^a-z0-9가-힣\s]/g, ' ')
+    .split(/\s+/)
+    .filter((t) => t.length > 0);
+
+  for (const token of tokens) {
+    if (KEYWORD_MAP[token]) {
+      for (const k of KEYWORD_MAP[token]) keywords.add(k);
+    }
+    if (/^[a-z0-9]+$/.test(token) && token.length >= 2) {
+      keywords.add(token);
+    }
+  }
+
+  // fallback: 키워드가 하나도 안 나오면 전체 이름을 정규화해서 사용
+  if (keywords.size === 0) {
+    const fallback = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (fallback.length >= 2) keywords.add(fallback);
+  }
+
+  return [...keywords];
+}
+
+/**
+ * 기능별로 관련 있는 소스 파일을 매칭하여 반환합니다.
+ * - path 또는 content에 키워드가 등장하면 매칭
+ * - 기능당 최대 maxPerFeature 개 (line_count 작은 순 — 핵심 로직 우선 가설)
+ */
+export function matchSourcesByKeywords(
+  keywords: string[],
+  sources: AssessSourceFile[],
+  maxPerFeature = 10
+): AssessSourceFile[] {
+  if (keywords.length === 0) return [];
+  const lowered = keywords.map((k) => k.toLowerCase());
+
+  const matched = sources.filter((s) => {
+    const pathLower = s.path.toLowerCase();
+    if (lowered.some((k) => pathLower.includes(k))) return true;
+    const contentLower = s.content.toLowerCase();
+    return lowered.some((k) => contentLower.includes(k));
+  });
+
+  // line_count 오름차순 — 작고 응집된 핵심 로직 우선
+  matched.sort((a, b) => a.line_count - b.line_count);
+  return matched.slice(0, maxPerFeature);
+}
+
+export function buildAssessWithSourceMessage(input: AssessWithSourceInput): string {
+  const featureList = input.features
+    .map((f) => `- [${f.id}] ${f.name} (세부 ${f.total_items}개): ${f.prd_summary ?? ''}`)
+    .join('\n');
+
+  const sessionList = input.sessions
+    .map((s) => `- ${s.title}: ${s.summary ?? ''}\n  변경 파일: ${s.changed_files.join(', ') || '없음'}`)
+    .join('\n');
+
+  // 기능별 키워드 매칭 → 파일 중복 제거 → 토큰 한도 내 슬라이스
+  const featureToFiles = new Map<string, AssessSourceFile[]>();
+  const usedPaths = new Set<string>();
+
+  for (const f of input.features) {
+    const keywords = extractFeatureKeywords(f.name);
+    const matched = matchSourcesByKeywords(keywords, input.source_files);
+    featureToFiles.set(f.id, matched);
+    for (const m of matched) usedPaths.add(m.path);
+  }
+
+  // 파일별로 한 번씩만 포함 (전체 메시지 단일 섹션)
+  const includedFiles: AssessSourceFile[] = [];
+  let totalChars = 0;
+  const pathByFile = new Map<string, AssessSourceFile>(
+    input.source_files.map((f) => [f.path, f])
+  );
+
+  for (const path of usedPaths) {
+    const file = pathByFile.get(path);
+    if (!file) continue;
+    const block = `\n\n### ${file.path} (line ${file.line_count})\n\`\`\`\n${file.content}\n\`\`\``;
+    if (totalChars + block.length > SOURCE_MESSAGE_MAX_CHARS) break;
+    includedFiles.push(file);
+    totalChars += block.length;
+  }
+
+  // 기능별 매칭 표 (LLM에게 어느 파일이 어느 기능과 관련 있는지 힌트)
+  const matchingTable = input.features
+    .map((f) => {
+      const files = featureToFiles.get(f.id) ?? [];
+      const included = files
+        .filter((file) => includedFiles.some((inc) => inc.path === file.path))
+        .map((file) => file.path);
+      const list = included.length > 0 ? included.join(', ') : '(매칭 파일 없음)';
+      return `- [${f.id}] ${f.name} → ${list}`;
+    })
+    .join('\n');
+
+  const sourcesSection = includedFiles
+    .map(
+      (f) => `### ${f.path} (line ${f.line_count})\n\`\`\`\n${f.content}\n\`\`\``
+    )
+    .join('\n\n');
+
+  return `## 기능 목록
+${featureList}
+
+## 세션 로그
+${sessionList}
+
+## 기능 ↔ 파일 매칭 (키워드 기반 사전 매칭, 참고용)
+${matchingTable}
+
+## 관련 소스 파일 (실제 코드 — 1순위 근거)
+${sourcesSection || '(매칭된 소스 파일 없음 — 세션 로그를 fallback으로 사용)'}`;
 }
 
 export interface ReverseIAInput {
