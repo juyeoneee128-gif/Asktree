@@ -144,6 +144,88 @@ describe('extractFeaturesForDocument — document_type 분류', () => {
     expect(classifyUpdate).toBeDefined();
   });
 
+  it('expected_items를 저장하고 total_items를 expected_items.length로 자동 산출한다 (정상)', async () => {
+    callClaudeMock.mockResolvedValue({
+      toolInputs: [
+        {
+          document_type: 'prd',
+          features: [
+            {
+              name: '사용자 인증',
+              total_items: 99,  // LLM이 잘못 카운트해도 expected_items.length로 덮어쓰여야 함
+              prd_summary: '이메일/소셜 로그인',
+              expected_items: ['이메일 로그인', '소셜 로그인 (Google)', '세션 관리'],
+            },
+          ],
+        },
+      ],
+      tokenUsage: { input: 100, output: 30 },
+    });
+
+    const result = await extractFeaturesForDocument('p1', 'doc-exp-1', 'PRD', '...');
+
+    expect(result.features_count).toBe(1);
+    expect(result.features[0]).toMatchObject({
+      name: '사용자 인증',
+      total_items: 3,  // ← expected_items.length, LLM의 99 무시
+      expected_items: ['이메일 로그인', '소셜 로그인 (Google)', '세션 관리'],
+    });
+    expect(featureInserts).toHaveLength(1);
+    expect(featureInserts[0]).toMatchObject({
+      total_items: 3,
+      expected_items: ['이메일 로그인', '소셜 로그인 (Google)', '세션 관리'],
+    });
+  });
+
+  it('expected_items가 누락되면 빈 배열로 저장 + LLM total_items를 그대로 사용 (legacy 호환 — 엣지)', async () => {
+    callClaudeMock.mockResolvedValue({
+      toolInputs: [
+        {
+          document_type: 'prd',
+          features: [
+            { name: '결제', total_items: 5, prd_summary: '...' },  // expected_items 누락
+          ],
+        },
+      ],
+      tokenUsage: { input: 100, output: 30 },
+    });
+
+    const result = await extractFeaturesForDocument('p1', 'doc-exp-2', 'PRD', '...');
+
+    expect(result.features[0]).toMatchObject({
+      name: '결제',
+      total_items: 5,           // LLM 값 보존 (fallback)
+      expected_items: [],
+    });
+    expect(featureInserts[0]).toMatchObject({
+      total_items: 5,
+      expected_items: [],
+    });
+  });
+
+  it('expected_items에 문자열 아닌 항목이 섞이면 필터링한다 (방어 — 에러)', async () => {
+    callClaudeMock.mockResolvedValue({
+      toolInputs: [
+        {
+          document_type: 'prd',
+          features: [
+            {
+              name: '알림',
+              total_items: 2,
+              prd_summary: '...',
+              expected_items: ['정상 항목', 42, null, '두 번째 정상 항목'],
+            },
+          ],
+        },
+      ],
+      tokenUsage: { input: 100, output: 30 },
+    });
+
+    const result = await extractFeaturesForDocument('p1', 'doc-exp-3', 'PRD', '...');
+    expect(result.features[0].expected_items).toEqual(['정상 항목', '두 번째 정상 항목']);
+    expect(result.features[0].total_items).toBe(2);
+  });
+
   it('document_type이 enum 외 값이면 null로 fallback하고 classification UPDATE를 건너뛴다', async () => {
     callClaudeMock.mockResolvedValue({
       toolInputs: [

@@ -19,6 +19,7 @@ interface ExtractedFeature {
   name: string;
   total_items: number;
   prd_summary: string;
+  expected_items: string[];
 }
 
 export type DocumentClassification = 'prd' | 'spec' | 'other';
@@ -101,10 +102,21 @@ export async function extractFeaturesForDocument(
     for (const raw of rawFeatures) {
       const f = raw as Record<string, unknown>;
       if (typeof f.name === 'string' && typeof f.prd_summary === 'string') {
+        const expected_items = Array.isArray(f.expected_items)
+          ? f.expected_items.filter((x): x is string => typeof x === 'string')
+          : [];
         features.push({
           name: f.name,
-          total_items: typeof f.total_items === 'number' ? f.total_items : 1,
+          // total_items는 LLM 반환값보다 expected_items.length를 우선 — 두 값 사이 불일치 방지.
+          // expected_items 비어있는 legacy 케이스는 LLM total_items로 fallback.
+          total_items:
+            expected_items.length > 0
+              ? expected_items.length
+              : typeof f.total_items === 'number'
+                ? f.total_items
+                : 1,
           prd_summary: f.prd_summary,
+          expected_items,
         });
       }
     }
@@ -138,6 +150,7 @@ export async function extractFeaturesForDocument(
       status: 'unimplemented' as const,
       total_items: f.total_items,
       prd_summary: f.prd_summary,
+      expected_items: f.expected_items as Database['public']['Tables']['spec_features']['Insert']['expected_items'],
     }));
 
     const { error: insertError } = await supabase.from('spec_features').insert(rows);

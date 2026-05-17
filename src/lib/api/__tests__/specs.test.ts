@@ -41,6 +41,48 @@ describe('normalizeImplementedItems', () => {
     expect(result[2]).toEqual({ name: '로그아웃', line: 67, checked: true });
   });
 
+  it('expected_items가 있으면 모든 항목 표시 + implemented에 든 이름만 checked (정상)', () => {
+    const expected = ['이메일 로그인', '소셜 로그인 (Google)', '세션 관리', '로그아웃'];
+    const implemented = ['이메일 로그인', '세션 관리'];
+
+    const result = normalizeImplementedItems(implemented, expected);
+    expect(result).toHaveLength(4);
+    expect(result).toEqual([
+      { name: '이메일 로그인', checked: true },
+      { name: '소셜 로그인 (Google)', checked: false },
+      { name: '세션 관리', checked: true },
+      { name: '로그아웃', checked: false },
+    ]);
+  });
+
+  it('expected_items === implemented_items면 전부 checked (정상)', () => {
+    const expected = ['항목1', '항목2'];
+    const result = normalizeImplementedItems(expected, expected);
+    expect(result).toEqual([
+      { name: '항목1', checked: true },
+      { name: '항목2', checked: true },
+    ]);
+  });
+
+  it('expected_items 있지만 implemented_items 빈 배열이면 전부 unchecked (경계)', () => {
+    const expected = ['항목1', '항목2', '항목3'];
+    const result = normalizeImplementedItems([], expected);
+    expect(result).toEqual([
+      { name: '항목1', checked: false },
+      { name: '항목2', checked: false },
+      { name: '항목3', checked: false },
+    ]);
+  });
+
+  it('expected_items 인자 누락 시 legacy fallback — implemented만 모두 checked (호환)', () => {
+    // 옛 호출자가 1개 인자만 넘기는 경우. expectedRaw=undefined로 처리됨.
+    const result = normalizeImplementedItems(['항목A', '항목B']);
+    expect(result).toEqual([
+      { name: '항목A', checked: true },
+      { name: '항목B', checked: true },
+    ]);
+  });
+
   it('빈 배열·배열 아님·잘못된 항목은 빈 결과로 처리한다 (엣지/에러)', () => {
     // 빈 배열
     expect(normalizeImplementedItems([])).toEqual([]);

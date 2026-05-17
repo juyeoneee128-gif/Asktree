@@ -189,12 +189,45 @@ export async function POST(request: Request) {
       .select('id', { count: 'exact', head: true })
       .eq('project_id', payload.project_id);
 
+    // expected_items가 비어있는 legacy features 카운트 — backfill 트리거.
+    // 마이그레이션 018 이전에 추출된 row만 발동, 채워진 row는 보존.
+    const { count: legacyFeatureCount } = await adminClient
+      .from('spec_features')
+      .select('id', { count: 'exact', head: true })
+      .eq('project_id', payload.project_id)
+      .eq('is_duplicate', false)
+      .eq('expected_items', '[]');
+
     if (countError) {
       console.warn(
         '[source-snapshot] spec_features count failed:',
         countError.message
       );
-    } else if ((existingFeatureCount ?? 0) === 0) {
+    } else if ((existingFeatureCount ?? 0) === 0 || (legacyFeatureCount ?? 0) > 0) {
+      // backfill: expected_items 비어있는 row만 선택적으로 삭제 — 채워진 row는 보존.
+      if ((legacyFeatureCount ?? 0) > 0) {
+        console.log(
+          `[source-snapshot] backfill: ${legacyFeatureCount} features without expected_items — deleting and re-extracting`
+        );
+        const { error: delErr } = await adminClient
+          .from('spec_features')
+          .delete()
+          .eq('project_id', payload.project_id)
+          .eq('expected_items', '[]');
+        if (delErr) {
+          console.error('[source-snapshot] legacy delete failed:', delErr.message);
+        }
+        // spec_documents.content_hash을 null로 만들어 syncAgentDocs가 changed로 인식하도록 강제.
+        const { error: hashErr } = await adminClient
+          .from('spec_documents')
+          .update({ content_hash: null })
+          .eq('project_id', payload.project_id)
+          .eq('source', 'agent')
+          .is('deleted_at', null);
+        if (hashErr) {
+          console.error('[source-snapshot] content_hash reset failed:', hashErr.message);
+        }
+      }
       try {
         const sync = await syncAgentDocs(payload.project_id, docsFiles);
         if (sync.errors.length > 0) {

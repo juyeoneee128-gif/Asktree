@@ -82,7 +82,7 @@ export async function assessFeatures(
   // 1. 기능 목록 조회 (중복 마킹된 항목 제외)
   const { data: features } = await supabase
     .from('spec_features')
-    .select('id, name, total_items, prd_summary')
+    .select('id, name, total_items, prd_summary, expected_items')
     .eq('project_id', projectId)
     .eq('is_duplicate', false);
 
@@ -139,6 +139,9 @@ export async function assessFeatures(
     name: f.name,
     total_items: f.total_items,
     prd_summary: f.prd_summary,
+    expected_items: Array.isArray(f.expected_items)
+      ? (f.expected_items as unknown[]).filter((x): x is string => typeof x === 'string')
+      : [],
   }));
 
   // 3. Claude API 호출 — features를 ASSESS_CHUNK_SIZE 단위로 분할하여 순차 호출.

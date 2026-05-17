@@ -51,6 +51,9 @@ export interface Database {
           agent_path: string | null;
           agent_token: string | null;
           signing_key: string;
+          first_scan_done: boolean;
+          pending_full_scan: boolean;
+          pending_full_scan_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -63,6 +66,9 @@ export interface Database {
           agent_path?: string | null;
           agent_token?: string | null;
           signing_key?: string;
+          first_scan_done?: boolean;
+          pending_full_scan?: boolean;
+          pending_full_scan_at?: string | null;
         };
         Update: {
           name?: string;
@@ -70,6 +76,9 @@ export interface Database {
           agent_last_seen?: string | null;
           agent_path?: string | null;
           agent_token?: string | null;
+          first_scan_done?: boolean;
+          pending_full_scan?: boolean;
+          pending_full_scan_at?: string | null;
         };
         Relationships: [];
       };
@@ -265,6 +274,7 @@ export interface Database {
           source: 'FRD' | 'PRD';
           status: 'implemented' | 'partial' | 'unimplemented' | 'attention';
           implemented_items: Json;
+          expected_items: Json;
           total_items: number;
           related_files: Json;
           prd_summary: string | null;
@@ -279,6 +289,7 @@ export interface Database {
           source: 'FRD' | 'PRD';
           status?: 'implemented' | 'partial' | 'unimplemented' | 'attention';
           implemented_items?: Json;
+          expected_items?: Json;
           total_items?: number;
           related_files?: Json;
           prd_summary?: string | null;
@@ -289,6 +300,7 @@ export interface Database {
           source?: 'FRD' | 'PRD';
           status?: 'implemented' | 'partial' | 'unimplemented' | 'attention';
           implemented_items?: Json;
+          expected_items?: Json;
           total_items?: number;
           related_files?: Json;
           prd_summary?: string | null;
@@ -336,7 +348,7 @@ export interface Database {
         Row: {
           id: string;
           session_id: string;
-          data_type: 'file_tree' | 'diff' | 'eslint';
+          data_type: 'file_tree' | 'diff' | 'eslint' | 'source_file';
           content: Json;
           expires_at: string;
           created_at: string;
@@ -344,7 +356,7 @@ export interface Database {
         Insert: {
           id?: string;
           session_id: string;
-          data_type: 'file_tree' | 'diff' | 'eslint';
+          data_type: 'file_tree' | 'diff' | 'eslint' | 'source_file';
           content: Json;
           expires_at?: string;
         };

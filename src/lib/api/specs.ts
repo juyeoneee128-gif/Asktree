@@ -25,6 +25,7 @@ interface SpecFeatureRow {
   source: SpecDocType;
   status: FeatureStatus;
   implemented_items: unknown;
+  expected_items: unknown;
   total_items: number;
   related_files: unknown;
   prd_summary: string | null;
@@ -53,32 +54,72 @@ function toSpecDocument(row: SpecDocumentRow): SpecDocument {
   };
 }
 
-export function normalizeImplementedItems(raw: unknown): FeatureItem[] {
+/**
+ * 단일 entry를 항목명(string)으로 정규화. string은 그대로, {name} 객체는 name만 추출.
+ * 잘못된 형식은 null.
+ */
+function entryToName(entry: unknown): string | null {
+  if (typeof entry === 'string') return entry;
+  if (
+    entry &&
+    typeof entry === 'object' &&
+    'name' in entry &&
+    typeof (entry as { name: unknown }).name === 'string'
+  ) {
+    return (entry as { name: string }).name;
+  }
+  return null;
+}
+
+function extractStringNames(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];
   return raw
-    .map((entry): FeatureItem | null => {
-      // LLM이 반환하는 실제 형식 — 단순 문자열 배열.
-      // 프롬프트가 "구현이 확인된 항목만 나열"하라고 강제하므로 checked는 항상 true.
-      if (typeof entry === 'string') {
-        return { name: entry, checked: true };
-      }
-      // mock/옛 데이터 호환 — {name, line?, checked} 객체 형식.
-      if (
-        entry &&
-        typeof entry === 'object' &&
-        'name' in entry &&
-        typeof (entry as { name: unknown }).name === 'string'
-      ) {
-        const obj = entry as { name: string; line?: number; checked?: boolean };
-        return {
-          name: obj.name,
-          ...(typeof obj.line === 'number' ? { line: obj.line } : {}),
-          checked: obj.checked === true,
-        };
-      }
-      return null;
-    })
-    .filter((x): x is FeatureItem => x !== null);
+    .map((e) => entryToName(e))
+    .filter((x): x is string => x !== null);
+}
+
+/**
+ * expected_items + implemented_items를 결합해 UI용 FeatureItem 배열을 만든다.
+ *
+ * - expectedRaw가 있으면 expected를 기준으로 모든 항목을 표시하고,
+ *   implementedRaw에 포함된 이름만 checked=true.
+ * - expectedRaw가 비어있는 legacy 데이터는 implementedRaw만 표시 (전부 checked=true).
+ *
+ * 첫 번째 인자에 객체 배열({name, checked, line?})이 그대로 들어오는 mock 흐름도 지원.
+ */
+export function normalizeImplementedItems(
+  implementedRaw: unknown,
+  expectedRaw?: unknown
+): FeatureItem[] {
+  const expected = extractStringNames(expectedRaw);
+
+  // expected_items가 비어있으면 legacy fallback — implemented만 표시 (모두 checked).
+  if (expected.length === 0) {
+    if (!Array.isArray(implementedRaw)) return [];
+    return implementedRaw
+      .map((entry): FeatureItem | null => {
+        if (typeof entry === 'string') return { name: entry, checked: true };
+        if (
+          entry &&
+          typeof entry === 'object' &&
+          'name' in entry &&
+          typeof (entry as { name: unknown }).name === 'string'
+        ) {
+          const obj = entry as { name: string; line?: number; checked?: boolean };
+          return {
+            name: obj.name,
+            ...(typeof obj.line === 'number' ? { line: obj.line } : {}),
+            checked: obj.checked === true,
+          };
+        }
+        return null;
+      })
+      .filter((x): x is FeatureItem => x !== null);
+  }
+
+  // expected 기준 — 모든 항목 표시, implemented에 포함된 이름만 checked=true.
+  const implementedNames = new Set(extractStringNames(implementedRaw));
+  return expected.map((name) => ({ name, checked: implementedNames.has(name) }));
 }
 
 function normalizeRelatedFiles(raw: unknown): string[] {
@@ -120,13 +161,16 @@ function groupStatusFeatures(rows: SpecFeatureRow[]): Feature[] {
   for (const row of rows) {
     const key = row.name.trim();
     if (map.has(key)) continue;
-    const items = normalizeImplementedItems(row.implemented_items);
+    const items = normalizeImplementedItems(row.implemented_items, row.expected_items);
+    // totalItems는 expected_items.length를 우선 (LLM이 채웠을 때 정확).
+    // expected_items 비어있는 legacy row는 DB total_items 사용.
+    const expectedLen = Array.isArray(row.expected_items) ? row.expected_items.length : 0;
     map.set(key, {
       id: row.id,
       name: row.name,
       status: row.status,
       implementedItems: items,
-      totalItems: row.total_items,
+      totalItems: expectedLen > 0 ? expectedLen : row.total_items,
       issueCount: 0,
       lastSession: '-',
       techStack: '',

@@ -23,10 +23,15 @@ export const EXTRACT_FEATURES_TOOL: Tool = {
           type: 'object',
           properties: {
             name: { type: 'string', description: '기능명 (한국어, 20자 이내)' },
-            total_items: { type: 'integer', description: '세부 요구사항 수' },
+            total_items: { type: 'integer', description: '세부 요구사항 수 (expected_items.length와 일치해야 함)' },
             prd_summary: { type: 'string', description: '핵심 요구사항 1~2문장 요약' },
+            expected_items: {
+              type: 'array',
+              items: { type: 'string' },
+              description: '이 기능이 갖춰야 할 세부 구현 항목 전체 목록. 한국어 1줄 1항목. prd_summary가 명시한 모든 세부 동작/요구사항을 분해.',
+            },
           },
-          required: ['name', 'total_items', 'prd_summary'],
+          required: ['name', 'total_items', 'prd_summary', 'expected_items'],
         },
       },
     },
@@ -146,6 +151,22 @@ document_type이 "prd" 또는 "spec"인 경우에만 기능을 추출하라.
 - UI/디자인 요구사항은 제외하고, 로직/데이터/API 기능만 추출하세요
 - 기능이 없으면 빈 배열을 반환하세요
 
+## expected_items 작성 규칙 (필수)
+각 기능에 대해, 그 기능이 "완전히 구현됐다"고 말하려면 무엇이 필요한지 항목 단위로 분해하라.
+prd_summary가 명시한 모든 세부 동작/요구사항을 1줄 1항목으로 나열한다.
+
+### 예시
+기능명: '사용자 인증'
+prd_summary: '이메일/소셜 로그인, 세션 관리, 로그아웃 지원'
+expected_items:
+  - '이메일 로그인 (회원가입 + 로그인)'
+  - '소셜 로그인 (Google/Naver)'
+  - '세션 관리 (토큰 발급/만료/갱신)'
+  - '로그아웃 (세션 정리)'
+
+→ total_items는 expected_items의 개수와 일치해야 한다.
+→ expected_items가 비어있으면 안 된다 — 기능을 추출했다는 건 최소 1개 이상의 세부 항목이 있다는 뜻.
+
 ## 기능명 규칙 (중요)
 - 기능명은 **반드시 한국어**로 작성하세요 (20자 이내).
 - 기획서에 영어 기술 용어가 그대로 등장하더라도 한국어로 번역하세요.
@@ -198,7 +219,24 @@ export const ASSESS_FEATURES_SYSTEM = `당신은 코드 구현 현황 판정 전
 - **unimplemented**: 미구현. implemented_items는 빈 배열.
 - **attention**: 구현되었으나 기획서와 다르거나 누락된 부분이 있어 사람 확인이 필요.
 
-## implemented_items 작성 규칙
+## expected_items 활용 (있을 경우 — 최우선)
+입력의 각 기능에는 "이 기능이 갖춰야 할 세부 항목 전체 목록"인 expected_items가 주어진다.
+implemented_items는 expected_items 중 실제 소스코드에서 구현이 확인된 부분집합만 반환한다.
+
+### 매칭 규칙
+- implemented_items에 넣는 각 항목명은 **expected_items에 등장한 정확한 이름** 그대로 사용한다.
+- 부분 표현/약어/재작성 금지 — UI에서 정확한 매칭(Set 비교)으로 체크박스를 그리기 때문.
+
+### status 판단 기준 (expected_items가 있을 때)
+- implemented_items.length === expected_items.length → 'implemented'
+- 0 < implemented_items.length < expected_items.length → 'partial'
+- implemented_items.length === 0 → 'unimplemented'
+- 모호하면 'attention'
+
+### expected_items가 빈 배열일 때 (legacy 데이터 fallback)
+기존 휴리스틱(소스코드/시그니처 기반 판정)을 그대로 사용. implemented_items 작성 규칙은 아래.
+
+## implemented_items 작성 규칙 (legacy/fallback)
 - **implemented 상태**: prd_summary와 소스코드에서 확인된 모든 세부 동작을 나열
 - **partial 상태**: 구현이 확인된 항목만 나열
 - **unimplemented 상태**: 빈 배열
@@ -253,9 +291,31 @@ export interface AssessFileSignature {
 }
 
 export interface AssessInput {
-  features: { id: string; name: string; total_items: number; prd_summary: string | null }[];
+  features: {
+    id: string;
+    name: string;
+    total_items: number;
+    prd_summary: string | null;
+    expected_items?: string[];
+  }[];
   sessions: { title: string; summary: string | null; changed_files: string[] }[];
   file_signatures?: AssessFileSignature[];
+}
+
+function formatFeatureLine(f: {
+  id: string;
+  name: string;
+  total_items: number;
+  prd_summary: string | null;
+  expected_items?: string[];
+}): string {
+  const items = (f.expected_items ?? []).filter((x): x is string => typeof x === 'string');
+  if (items.length === 0) {
+    // legacy: expected_items 없음 — 기존 형식 유지
+    return `- [${f.id}] ${f.name} (세부 ${f.total_items}개): ${f.prd_summary ?? ''}`;
+  }
+  const itemLines = items.map((it) => `    - ${it}`).join('\n');
+  return `- [${f.id}] ${f.name}: ${f.prd_summary ?? ''}\n  expected_items:\n${itemLines}`;
 }
 
 /**
@@ -265,9 +325,7 @@ export interface AssessInput {
 const SIGNATURES_MAX_CHARS = 24000;
 
 export function buildAssessMessage(input: AssessInput): string {
-  const featureList = input.features
-    .map((f) => `- [${f.id}] ${f.name} (세부 ${f.total_items}개): ${f.prd_summary ?? ''}`)
-    .join('\n');
+  const featureList = input.features.map(formatFeatureLine).join('\n');
 
   const sessionList = input.sessions
     .map((s) => `- ${s.title}: ${s.summary ?? ''}\n  변경 파일: ${s.changed_files.join(', ') || '없음'}`)
@@ -335,7 +393,13 @@ export interface AssessSourceFile {
 }
 
 export interface AssessWithSourceInput {
-  features: { id: string; name: string; total_items: number; prd_summary: string | null }[];
+  features: {
+    id: string;
+    name: string;
+    total_items: number;
+    prd_summary: string | null;
+    expected_items?: string[];
+  }[];
   sessions: { title: string; summary: string | null; changed_files: string[] }[];
   source_files: AssessSourceFile[];
 }
@@ -444,9 +508,7 @@ export function matchSourcesByKeywords(
 }
 
 export function buildAssessWithSourceMessage(input: AssessWithSourceInput): string {
-  const featureList = input.features
-    .map((f) => `- [${f.id}] ${f.name} (세부 ${f.total_items}개): ${f.prd_summary ?? ''}`)
-    .join('\n');
+  const featureList = input.features.map(formatFeatureLine).join('\n');
 
   const sessionList = input.sessions
     .map((s) => `- ${s.title}: ${s.summary ?? ''}\n  변경 파일: ${s.changed_files.join(', ') || '없음'}`)

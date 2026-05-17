@@ -44,6 +44,24 @@ describe('도구 스키마', () => {
     const schema = REVERSE_IA_TOOL.input_schema as Record<string, unknown>;
     expect(schema.required).toContain('features');
   });
+
+  it('EXTRACT_FEATURES_TOOL.items가 expected_items를 required로 강제한다 (회귀 보호)', () => {
+    // 신규 expected_items 필드가 누락되면 LLM이 채우지 않아 backfill이 끝없이 반복된다.
+    const schema = EXTRACT_FEATURES_TOOL.input_schema as {
+      properties: {
+        features: {
+          items: {
+            properties: { expected_items: { type: string; items: { type: string } } };
+            required: string[];
+          };
+        };
+      };
+    };
+    const itemSchema = schema.properties.features.items;
+    expect(itemSchema.properties.expected_items.type).toBe('array');
+    expect(itemSchema.properties.expected_items.items.type).toBe('string');
+    expect(itemSchema.required).toContain('expected_items');
+  });
 });
 
 describe('시스템 프롬프트', () => {
@@ -91,6 +109,21 @@ describe('시스템 프롬프트', () => {
     expect(ASSESS_FEATURES_SYSTEM).toContain('사용자 인증');
   });
 
+  it('판정 프롬프트가 expected_items 활용 + 정확한 이름 매칭을 강제한다 (회귀 보호)', () => {
+    // implemented_items의 항목명이 expected_items와 정확히 일치해야 UI 체크박스가 동작.
+    expect(ASSESS_FEATURES_SYSTEM).toContain('expected_items');
+    expect(ASSESS_FEATURES_SYSTEM).toMatch(/expected_items[\s\S]*정확한 이름/);
+    // status 판단 기준이 길이 비교로 명시되어 있는지
+    expect(ASSESS_FEATURES_SYSTEM).toMatch(/implemented_items\.length[\s\S]*expected_items\.length/);
+  });
+
+  it('기능 추출 프롬프트가 expected_items 작성 규칙을 명시한다 (정상)', () => {
+    expect(EXTRACT_FEATURES_SYSTEM).toContain('expected_items 작성 규칙');
+    expect(EXTRACT_FEATURES_SYSTEM).toContain('1줄 1항목');
+    // 빈 배열 금지 명시 — extract 시점에 누락되면 backfill이 무의미해짐
+    expect(EXTRACT_FEATURES_SYSTEM).toContain('비어있으면 안 된다');
+  });
+
   it('Reverse IA 프롬프트에 역추출 지시가 포함되어 있다', () => {
     expect(REVERSE_IA_SYSTEM).toContain('세션 로그');
     expect(REVERSE_IA_SYSTEM).toContain('기능 추출');
@@ -117,6 +150,37 @@ describe('메시지 빌더', () => {
     });
     expect(msg).toContain('[f1] 로그인');
     expect(msg).toContain('src/auth/login.ts');
+  });
+
+  it('expected_items가 있으면 메시지에 항목 목록이 들여쓰기로 노출된다 (정상)', () => {
+    const msg = buildAssessMessage({
+      features: [
+        {
+          id: 'f1',
+          name: '로그인',
+          total_items: 2,
+          prd_summary: '이메일/소셜 로그인',
+          expected_items: ['이메일 로그인', '소셜 로그인 (Google)'],
+        },
+      ],
+      sessions: [],
+    });
+    expect(msg).toContain('expected_items:');
+    expect(msg).toContain('- 이메일 로그인');
+    expect(msg).toContain('- 소셜 로그인 (Google)');
+    // expected_items가 있으면 "(세부 N개)" 형식은 사용하지 않음 (불필요)
+    expect(msg).not.toContain('(세부 2개)');
+  });
+
+  it('expected_items가 빈 배열이면 기존 "(세부 N개)" 형식을 유지한다 (legacy 호환 — 엣지)', () => {
+    const msg = buildAssessMessage({
+      features: [
+        { id: 'f1', name: '로그인', total_items: 3, prd_summary: '요약', expected_items: [] },
+      ],
+      sessions: [],
+    });
+    expect(msg).toContain('(세부 3개)');
+    expect(msg).not.toContain('expected_items:');
   });
 
   it('Reverse IA 메시지를 올바르게 조립한다', () => {
