@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { chunkFeatures, ASSESS_CHUNK_SIZE } from '../assess-features';
+import {
+  chunkFeatures,
+  ASSESS_CHUNK_SIZE,
+  computeStatusFromCounts,
+} from '../assess-features';
 
 /**
  * chunkFeatures는 assess-features의 LLM 호출과 분리해 단위 검증이 가능하도록
@@ -41,5 +45,33 @@ describe('chunkFeatures', () => {
     const chunks = chunkFeatures(['a', 'b', 'c'], 50);
     expect(chunks).toHaveLength(1);
     expect(chunks[0]).toEqual(['a', 'b', 'c']);
+  });
+});
+
+/**
+ * status는 LLM 라벨 대신 코드가 length 비교로 산출하여 비결정성을 차단.
+ * 같은 expected/implemented_items면 항상 같은 status가 나와야 구현율 변동이 사라진다.
+ */
+describe('computeStatusFromCounts', () => {
+  it('impl === exp이면 implemented (정상)', () => {
+    expect(computeStatusFromCounts(4, 4)).toBe('implemented');
+    expect(computeStatusFromCounts(1, 1)).toBe('implemented');
+  });
+
+  it('0 < impl < exp이면 partial (정상)', () => {
+    expect(computeStatusFromCounts(3, 5)).toBe('partial');
+    expect(computeStatusFromCounts(1, 10)).toBe('partial');
+  });
+
+  it('impl === 0 또는 exp === 0이면 unimplemented (경계)', () => {
+    expect(computeStatusFromCounts(0, 5)).toBe('unimplemented');
+    expect(computeStatusFromCounts(0, 0)).toBe('unimplemented');
+    // exp === 0이지만 impl > 0인 비정상 케이스도 unimplemented로 안전하게 처리
+    expect(computeStatusFromCounts(3, 0)).toBe('unimplemented');
+  });
+
+  it('impl > exp 비정상 케이스에서도 implemented로 흡수 (에러 방어)', () => {
+    // 호출 측에서 사전 필터링하면 발생하지 않지만, 방어선으로 implemented 처리.
+    expect(computeStatusFromCounts(6, 5)).toBe('implemented');
   });
 });

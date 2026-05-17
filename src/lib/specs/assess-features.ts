@@ -39,6 +39,23 @@ export function chunkFeatures<T>(items: T[], chunkSize: number): T[][] {
   return chunks;
 }
 
+/**
+ * implemented_items 길이 vs expected_items 길이로 status를 결정.
+ * LLM이 같은 입력에 대해 다른 status 라벨을 붙이는 비결정성을 회피.
+ *
+ * - expected===0  → unimplemented (legacy fallback에서는 호출 측이 LLM status를 사용)
+ * - impl===0      → unimplemented
+ * - impl >= exp   → implemented (LLM이 expected 밖 항목을 넣은 경우도 implemented로 흡수,
+ *                   호출 측에서 사전 필터링하면 impl ≤ exp 보장됨)
+ * - 그 외 (0 < impl < exp) → partial
+ */
+export function computeStatusFromCounts(impl: number, exp: number): FeatureStatus {
+  if (exp === 0) return 'unimplemented';
+  if (impl === 0) return 'unimplemented';
+  if (impl >= exp) return 'implemented';
+  return 'partial';
+}
+
 export interface AssessResult {
   assessed_count: number;
   stats: {
@@ -154,6 +171,10 @@ export async function assessFeatures(
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
   const featureIds = new Set(features.map((f) => f.id));
+  // featureId → expected_items 매핑. 응답 파싱 시 status 보정과 implemented 필터링에 사용.
+  const expectedByFeatureId = new Map(
+    featureInputs.map((f) => [f.id, f.expected_items])
+  );
 
   for (const chunk of featureChunks) {
     const userMessage = useSourceBasis
@@ -188,26 +209,46 @@ export async function assessFeatures(
       for (const raw of assessments) {
         const a = raw as Record<string, unknown>;
         const featureId = a.feature_id as string;
-        const status = a.status as string;
+        const llmStatus = a.status as string;
 
         if (!featureIds.has(featureId)) {
           warnings.push(`Unknown feature_id: ${featureId}`);
           continue;
         }
 
-        if (!VALID_STATUSES.has(status)) {
-          warnings.push(`Invalid status "${status}" for feature ${featureId}`);
+        // implemented_items 정규화 — 문자열만 유지.
+        const llmImplemented = Array.isArray(a.implemented_items)
+          ? (a.implemented_items as unknown[]).filter((x): x is string => typeof x === 'string')
+          : [];
+        const relatedFiles = Array.isArray(a.related_files) ? a.related_files : [];
+
+        // expected_items가 채워진 경우:
+        //   (1) LLM이 반환한 implemented_items 중 expected에 없는 이름은 제거 → "6/5 모순" 방지
+        //   (2) status를 코드 측에서 결정 → LLM 비결정성 차단 (구현율 변동 해소)
+        // legacy(expected 빈) 경우:
+        //   기존 동작 유지 — LLM status 그대로 사용 (단 enum 검증)
+        const expected = expectedByFeatureId.get(featureId) ?? [];
+        const cleanedImplemented =
+          expected.length > 0
+            ? llmImplemented.filter((n) => expected.includes(n))
+            : llmImplemented;
+        const finalStatus: FeatureStatus =
+          expected.length > 0
+            ? computeStatusFromCounts(cleanedImplemented.length, expected.length)
+            : VALID_STATUSES.has(llmStatus)
+              ? (llmStatus as FeatureStatus)
+              : 'attention';
+
+        if (!VALID_STATUSES.has(finalStatus)) {
+          warnings.push(`Invalid status "${finalStatus}" for feature ${featureId}`);
           continue;
         }
-
-        const implementedItems = Array.isArray(a.implemented_items) ? a.implemented_items : [];
-        const relatedFiles = Array.isArray(a.related_files) ? a.related_files : [];
 
         const { error } = await supabase
           .from('spec_features')
           .update({
-            status: status as FeatureStatus,
-            implemented_items: implementedItems as Database['public']['Tables']['spec_features']['Update']['implemented_items'],
+            status: finalStatus,
+            implemented_items: cleanedImplemented as Database['public']['Tables']['spec_features']['Update']['implemented_items'],
             related_files: relatedFiles as Database['public']['Tables']['spec_features']['Update']['related_files'],
           })
           .eq('id', featureId);

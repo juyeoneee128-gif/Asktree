@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeImplementedItems } from '../specs';
+import {
+  normalizeImplementedItems,
+  groupStatusFeatures,
+  type SpecFeatureRow,
+} from '../specs';
 
 /**
  * normalizeImplementedItems는 spec_features.implemented_items 컬럼(JSONB)을
@@ -103,5 +107,105 @@ describe('normalizeImplementedItems', () => {
       { name: '정상 문자열', checked: true },
       { name: '정상 객체', checked: true },
     ]);
+  });
+});
+
+/**
+ * groupStatusFeatures는 현황 탭 리스트의 totalItems 보정 + 정렬 규칙을 결정.
+ * 4/3, 6/5 같은 implemented > total 모순 회귀와 순서 변동 회귀를 보호.
+ */
+describe('groupStatusFeatures', () => {
+  function row(overrides: Partial<SpecFeatureRow>): SpecFeatureRow {
+    return {
+      id: overrides.id ?? 'id-' + Math.random(),
+      project_id: 'p1',
+      document_id: 'd1',
+      name: overrides.name ?? 'f',
+      source: 'PRD',
+      status: 'unimplemented',
+      implemented_items: [],
+      expected_items: [],
+      total_items: 0,
+      related_files: [],
+      prd_summary: null,
+      created_at: '2026-05-17T00:00:00Z',
+      ...overrides,
+    };
+  }
+
+  it('expected_items가 implemented_items보다 길면 totalItems = expected.length (정상)', () => {
+    const out = groupStatusFeatures([
+      row({
+        name: '로그인',
+        status: 'partial',
+        expected_items: ['A', 'B', 'C', 'D', 'E'],
+        implemented_items: ['A', 'B'],
+        total_items: 5,
+      }),
+    ]);
+    expect(out[0].totalItems).toBe(5);
+    expect(out[0].implementedItems.filter((i) => i.checked).length).toBe(2);
+  });
+
+  it('implemented_items가 expected_items보다 많은 legacy 모순도 max로 보정 (회귀 보호)', () => {
+    const out = groupStatusFeatures([
+      row({
+        name: 'X',
+        status: 'implemented',
+        expected_items: ['A', 'B', 'C', 'D', 'E'], // 5개
+        implemented_items: ['A', 'B', 'C', 'D', 'E', 'F'], // 6개 (LLM이 expected 밖 항목 추가)
+        total_items: 5,
+      }),
+    ]);
+    // "6/5" 표시를 막기 위해 totalItems가 6으로 보정되어야 함
+    expect(out[0].totalItems).toBe(6);
+  });
+
+  it('expected 빈 legacy + LLM이 total_items보다 많은 implemented도 보정 (엣지)', () => {
+    const out = groupStatusFeatures([
+      row({
+        name: 'Y',
+        status: 'implemented',
+        expected_items: [],
+        implemented_items: ['a', 'b', 'c', 'd'], // 4개
+        total_items: 3, // legacy 카운트
+      }),
+    ]);
+    expect(out[0].totalItems).toBe(4); // max(0, 4, 3)
+  });
+
+  it('status 우선 정렬: partial → attention → unimplemented → implemented (정상)', () => {
+    const out = groupStatusFeatures([
+      row({ id: '1', name: 'A', status: 'implemented' }),
+      row({ id: '2', name: 'B', status: 'unimplemented' }),
+      row({ id: '3', name: 'C', status: 'attention' }),
+      row({ id: '4', name: 'D', status: 'partial' }),
+    ]);
+    expect(out.map((f) => f.status)).toEqual([
+      'partial',
+      'attention',
+      'unimplemented',
+      'implemented',
+    ]);
+  });
+
+  it('같은 status 내에서는 한국어 가나다순으로 정렬 (정상)', () => {
+    const out = groupStatusFeatures([
+      row({ id: '1', name: '차', status: 'partial' }),
+      row({ id: '2', name: '가', status: 'partial' }),
+      row({ id: '3', name: '나', status: 'partial' }),
+    ]);
+    expect(out.map((f) => f.name)).toEqual(['가', '나', '차']);
+  });
+
+  it('status × 이름 복합 정렬 (회귀 보호)', () => {
+    const out = groupStatusFeatures([
+      row({ id: '1', name: '결제', status: 'implemented' }),
+      row({ id: '2', name: '알림', status: 'partial' }),
+      row({ id: '3', name: '로그인', status: 'implemented' }),
+      row({ id: '4', name: '대시보드', status: 'partial' }),
+    ]);
+    // partial 먼저 (대시보드, 알림), 그 다음 implemented (결제, 로그인)
+    expect(out.map((f) => f.name)).toEqual(['대시보드', '알림', '결제', '로그인']);
   });
 });

@@ -17,7 +17,7 @@ interface SpecDocumentRow {
   created_at: string;
 }
 
-interface SpecFeatureRow {
+export interface SpecFeatureRow {
   id: string;
   project_id: string;
   document_id: string | null;
@@ -156,21 +156,25 @@ function groupSpecFeatures(rows: SpecFeatureRow[]): SpecFeature[] {
  * spec_features 행들을 병합 → 현황 탭용 Feature[] 반환.
  * DB에 없는 필드(techStack, lastSession, issueCount)는 placeholder.
  */
-function groupStatusFeatures(rows: SpecFeatureRow[]): Feature[] {
+export function groupStatusFeatures(rows: SpecFeatureRow[]): Feature[] {
   const map = new Map<string, Feature>();
   for (const row of rows) {
     const key = row.name.trim();
     if (map.has(key)) continue;
     const items = normalizeImplementedItems(row.implemented_items, row.expected_items);
-    // totalItems는 expected_items.length를 우선 (LLM이 채웠을 때 정확).
-    // expected_items 비어있는 legacy row는 DB total_items 사용.
+    // totalItems는 expected_items.length 우선이되, implemented_items.length가 더 크면
+    // (LLM이 expected 밖 항목을 추가한 legacy 데이터) 보정 — "6/5" 모순 방지.
     const expectedLen = Array.isArray(row.expected_items) ? row.expected_items.length : 0;
+    const implementedLen = Array.isArray(row.implemented_items)
+      ? row.implemented_items.length
+      : 0;
+    const total = Math.max(expectedLen, implementedLen, row.total_items);
     map.set(key, {
       id: row.id,
       name: row.name,
       status: row.status,
       implementedItems: items,
-      totalItems: expectedLen > 0 ? expectedLen : row.total_items,
+      totalItems: total,
       issueCount: 0,
       lastSession: '-',
       techStack: '',
@@ -178,7 +182,20 @@ function groupStatusFeatures(rows: SpecFeatureRow[]): Feature[] {
       prdSummary: row.prd_summary ?? undefined,
     });
   }
-  return [...map.values()];
+
+  // 현황 탭 UX: 작업이 남은 것 우선 → 완료는 마지막.
+  // 같은 status 내에서는 한국어 가나다순으로 안정 정렬.
+  const STATUS_ORDER: Record<FeatureStatus, number> = {
+    partial: 0,
+    attention: 1,
+    unimplemented: 2,
+    implemented: 3,
+  };
+  return [...map.values()].sort((a, b) => {
+    const so = STATUS_ORDER[a.status] - STATUS_ORDER[b.status];
+    if (so !== 0) return so;
+    return a.name.localeCompare(b.name, 'ko');
+  });
 }
 
 // ─── 문서 ───

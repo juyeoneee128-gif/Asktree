@@ -189,31 +189,43 @@ export async function POST(request: Request) {
       .select('id', { count: 'exact', head: true })
       .eq('project_id', payload.project_id);
 
-    // expected_items가 비어있는 legacy features 카운트 — backfill 트리거.
-    // 마이그레이션 018 이전에 추출된 row만 발동, 채워진 row는 보존.
-    const { count: legacyFeatureCount } = await adminClient
+    // expected_items가 비어있는 legacy features id 목록 — backfill 대상.
+    //
+    // 주의: supabase-js의 `.eq('jsonb_col', '[]')`는 PostgREST 변환 과정에서
+    // 빈 jsonb 배열과 매칭이 실패하므로 사용할 수 없다. 모든 row를 fetch한 뒤
+    // JS에서 length 검사로 필터링한다.
+    const { data: legacyRows, error: legacyErr } = await adminClient
       .from('spec_features')
-      .select('id', { count: 'exact', head: true })
+      .select('id, expected_items')
       .eq('project_id', payload.project_id)
-      .eq('is_duplicate', false)
-      .eq('expected_items', '[]');
+      .eq('is_duplicate', false);
+
+    const legacyIds = legacyErr
+      ? []
+      : (legacyRows ?? [])
+          .filter(
+            (r) =>
+              !Array.isArray(r.expected_items) ||
+              (r.expected_items as unknown[]).length === 0
+          )
+          .map((r) => r.id);
+    const legacyFeatureCount = legacyIds.length;
 
     if (countError) {
       console.warn(
         '[source-snapshot] spec_features count failed:',
         countError.message
       );
-    } else if ((existingFeatureCount ?? 0) === 0 || (legacyFeatureCount ?? 0) > 0) {
-      // backfill: expected_items 비어있는 row만 선택적으로 삭제 — 채워진 row는 보존.
-      if ((legacyFeatureCount ?? 0) > 0) {
+    } else if ((existingFeatureCount ?? 0) === 0 || legacyFeatureCount > 0) {
+      // backfill: expected_items 비어있는 row만 선택 삭제 — 채워진 row는 보존.
+      if (legacyFeatureCount > 0) {
         console.log(
           `[source-snapshot] backfill: ${legacyFeatureCount} features without expected_items — deleting and re-extracting`
         );
         const { error: delErr } = await adminClient
           .from('spec_features')
           .delete()
-          .eq('project_id', payload.project_id)
-          .eq('expected_items', '[]');
+          .in('id', legacyIds);
         if (delErr) {
           console.error('[source-snapshot] legacy delete failed:', delErr.message);
         }
