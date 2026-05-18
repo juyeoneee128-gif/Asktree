@@ -54,6 +54,31 @@ describe('프롬프트 템플릿', () => {
     expect(msg).toContain('src/config.ts');
     expect(msg).toContain('OWASP A02');
   });
+
+  it('contextSources가 없으면 컨텍스트 섹션을 추가하지 않는다 (incremental 호환)', () => {
+    const msg = buildStaticAnalysisMessage({
+      projectName: 'P',
+      sessionTitle: 'S',
+      filesChanged: ['a.ts'],
+      diffs: '--- a.ts ---\n+ foo()',
+    });
+    expect(msg).not.toContain('## 관련 소스 파일');
+  });
+
+  it('contextSources가 있으면 소스 컨텍스트 섹션을 첨부한다 (full_scan)', () => {
+    const msg = buildStaticAnalysisMessage({
+      projectName: 'P',
+      sessionTitle: 'S',
+      filesChanged: ['a.ts'],
+      diffs: '--- a.ts ---\n+ foo()',
+      contextSources: [
+        { path: 'src/parent.ts', content: 'import { foo } from "./a";\nfoo();', line_count: 2 },
+      ],
+    });
+    expect(msg).toContain('## 관련 소스 파일');
+    expect(msg).toContain('src/parent.ts');
+    expect(msg).toContain('partial-context 오탐');
+  });
 });
 
 describe('도구 스키마', () => {

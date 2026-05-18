@@ -796,10 +796,18 @@ export interface StaticAnalysisInput {
   sessionTitle: string;
   filesChanged: string[];
   diffs: string; // 모든 diff를 합친 문자열
+  /**
+   * full_scan 모드에서만 전달되는 컨텍스트 소스 파일.
+   * diff에 보이지 않는 사용처/상위 함수 확인용 — partial-context 오탐 감소.
+   * 토큰 한도(약 30K char) 내로 잘려서 전달됨.
+   */
+  contextSources?: { path: string; content: string; line_count: number }[];
 }
 
+const STATIC_SOURCE_CONTEXT_MAX_CHARS = 30_000;
+
 export function buildStaticAnalysisMessage(input: StaticAnalysisInput): string {
-  return `## 분석 대상
+  const base = `## 분석 대상
 - 프로젝트: ${input.projectName}
 - 세션 제목: ${input.sessionTitle}
 - 변경 파일: ${input.filesChanged.join(', ')}
@@ -808,6 +816,30 @@ export function buildStaticAnalysisMessage(input: StaticAnalysisInput): string {
 \`\`\`
 ${input.diffs}
 \`\`\``;
+
+  if (!input.contextSources || input.contextSources.length === 0) {
+    return base;
+  }
+
+  // 토큰 한도 내에서 line_count 작은 순으로 채움 (작은 파일=핵심 로직 가설)
+  const sorted = [...input.contextSources].sort((a, b) => a.line_count - b.line_count);
+  const blocks: string[] = [];
+  let totalChars = 0;
+
+  for (const f of sorted) {
+    const block = `### ${f.path} (line ${f.line_count})\n\`\`\`\n${f.content}\n\`\`\``;
+    if (totalChars + block.length > STATIC_SOURCE_CONTEXT_MAX_CHARS) break;
+    blocks.push(block);
+    totalChars += block.length;
+  }
+
+  if (blocks.length === 0) return base;
+
+  return `${base}
+
+## 관련 소스 파일 (컨텍스트 — 변경되지 않았지만 호출/사용처 확인용)
+diff에 보이지 않는 사용처·상위 함수·import 그래프를 확인하여 partial-context 오탐을 피하라.
+${blocks.join('\n\n')}`;
 }
 
 export interface SessionComparisonInput {

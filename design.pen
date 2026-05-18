@@ -14829,6 +14829,38 @@
                 },
                 {
                   "type": "frame",
+                  "id": "cOBfL",
+                  "name": "infoNotice",
+                  "width": "fill_container",
+                  "gap": 6,
+                  "padding": [
+                    8,
+                    32
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "Tb5MZ",
+                      "width": 14,
+                      "height": 14,
+                      "iconFontName": "info",
+                      "iconFontFamily": "lucide",
+                      "fill": "#D6D3D1"
+                    },
+                    {
+                      "type": "text",
+                      "id": "TwCVc",
+                      "fill": "#A8A29E",
+                      "content": "구현 상태는 AI가 추정한 결과이며, 실제와 다를 수 있습니다.",
+                      "fontFamily": "Pretendard",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
                   "id": "FRiiI",
                   "name": "splitArea",
                   "width": "fill_container",
@@ -16715,6 +16747,38 @@
                           ]
                         }
                       ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "dhUeM",
+                  "name": "infoNotice",
+                  "width": "fill_container",
+                  "gap": 6,
+                  "padding": [
+                    8,
+                    32
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "gUpcY",
+                      "width": 14,
+                      "height": 14,
+                      "iconFontName": "info",
+                      "iconFontFamily": "lucide",
+                      "fill": "#D6D3D1"
+                    },
+                    {
+                      "type": "text",
+                      "id": "AYBeS",
+                      "fill": "#A8A29E",
+                      "content": "구현 상태는 AI가 추정한 결과이며, 실제와 다를 수 있습니다.",
+                      "fontFamily": "Pretendard",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
                     }
                   ]
                 },
@@ -18665,6 +18729,38 @@
                           ]
                         }
                       ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "zzpS6",
+                  "name": "infoNotice",
+                  "width": "fill_container",
+                  "gap": 6,
+                  "padding": [
+                    8,
+                    32
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "SN0xg",
+                      "width": 14,
+                      "height": 14,
+                      "iconFontName": "info",
+                      "iconFontFamily": "lucide",
+                      "fill": "#D6D3D1"
+                    },
+                    {
+                      "type": "text",
+                      "id": "hyWao",
+                      "fill": "#A8A29E",
+                      "content": "구현 상태는 AI가 추정한 결과이며, 실제와 다를 수 있습니다.",
+                      "fontFamily": "Pretendard",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
                     }
                   ]
                 },
@@ -23705,6 +23801,38 @@
                     },
                     {
                       "type": "frame",
+                      "id": "OrYDT",
+                      "name": "infoNotice",
+                      "width": "fill_container",
+                      "gap": 6,
+                      "padding": [
+                        8,
+                        20
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "QVFFU",
+                          "width": 14,
+                          "height": 14,
+                          "iconFontName": "info",
+                          "iconFontFamily": "lucide",
+                          "fill": "#D6D3D1"
+                        },
+                        {
+                          "type": "text",
+                          "id": "IOnc7",
+                          "fill": "#A8A29E",
+                          "content": "AI 분석 결과입니다. 최종 판단은 직접 확인하세요.",
+                          "fontFamily": "Pretendard",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
                       "id": "MrqhH",
                       "name": "itemsContainer",
                       "width": "fill_container",
@@ -26195,6 +26323,38 @@
                     },
                     {
                       "type": "frame",
+                      "id": "Gy4lq",
+                      "name": "infoNotice",
+                      "width": "fill_container",
+                      "gap": 6,
+                      "padding": [
+                        8,
+                        20
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "MxdIX",
+                          "width": 14,
+                          "height": 14,
+                          "iconFontName": "info",
+                          "iconFontFamily": "lucide",
+                          "fill": "#D6D3D1"
+                        },
+                        {
+                          "type": "text",
+                          "id": "ua64m",
+                          "fill": "#A8A29E",
+                          "content": "AI 분석 결과입니다. 최종 판단은 직접 확인하세요.",
+                          "fontFamily": "Pretendard",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
                       "id": "j4tnT",
                       "name": "itemsContainer",
                       "width": "fill_container",
@@ -28636,6 +28796,38 @@
                     },
                     {
                       "type": "frame",
+                      "id": "N1Zwr",
+                      "name": "infoNotice",
+                      "width": "fill_container",
+                      "gap": 6,
+                      "padding": [
+                        8,
+                        20
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "pDshx",
+                          "width": 14,
+                          "height": 14,
+                          "iconFontName": "info",
+                          "iconFontFamily": "lucide",
+                          "fill": "#D6D3D1"
+                        },
+                        {
+                          "type": "text",
+                          "id": "q9Lodb",
+                          "fill": "#A8A29E",
+                          "content": "AI 분석 결과입니다. 최종 판단은 직접 확인하세요.",
+                          "fontFamily": "Pretendard",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
                       "id": "g90GBa",
                       "name": "itemsContainer",
                       "width": "fill_container",
@@ -30822,6 +31014,38 @@
                               "fontWeight": "600"
                             }
                           ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "ryoUk",
+                      "name": "infoNotice",
+                      "width": "fill_container",
+                      "gap": 6,
+                      "padding": [
+                        8,
+                        20
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "TIxrX",
+                          "width": 14,
+                          "height": 14,
+                          "iconFontName": "info",
+                          "iconFontFamily": "lucide",
+                          "fill": "#D6D3D1"
+                        },
+                        {
+                          "type": "text",
+                          "id": "OSUwX",
+                          "fill": "#A8A29E",
+                          "content": "AI 분석 결과입니다. 최종 판단은 직접 확인하세요.",
+                          "fontFamily": "Pretendard",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
                         }
                       ]
                     },
@@ -69147,6 +69371,38 @@
                 },
                 {
                   "type": "frame",
+                  "id": "vUEyR",
+                  "name": "infoNotice",
+                  "width": "fill_container",
+                  "gap": 6,
+                  "padding": [
+                    8,
+                    32
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "tpQPO",
+                      "width": 14,
+                      "height": 14,
+                      "iconFontName": "info",
+                      "iconFontFamily": "lucide",
+                      "fill": "#D6D3D1"
+                    },
+                    {
+                      "type": "text",
+                      "id": "A7jQi6",
+                      "fill": "#A8A29E",
+                      "content": "구현 상태는 AI가 추정한 결과이며, 실제와 다를 수 있습니다.",
+                      "fontFamily": "Pretendard",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
                   "id": "kkq4p",
                   "name": "splitArea",
                   "width": "fill_container",
@@ -77304,6 +77560,38 @@
                               "fontWeight": "600"
                             }
                           ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "uDI4E",
+                      "name": "infoNotice",
+                      "width": "fill_container",
+                      "gap": 6,
+                      "padding": [
+                        8,
+                        20
+                      ],
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "nqhVF",
+                          "width": 14,
+                          "height": 14,
+                          "iconFontName": "info",
+                          "iconFontFamily": "lucide",
+                          "fill": "#D6D3D1"
+                        },
+                        {
+                          "type": "text",
+                          "id": "RjSNJ",
+                          "fill": "#A8A29E",
+                          "content": "AI 분석 결과입니다. 최종 판단은 직접 확인하세요.",
+                          "fontFamily": "Pretendard",
+                          "fontSize": 12,
+                          "fontWeight": "normal"
                         }
                       ]
                     },

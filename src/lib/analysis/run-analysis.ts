@@ -1,4 +1,4 @@
-import { getEphemeral, deleteEphemeral } from '../agent/ephemeral';
+import { getEphemeral, deleteEphemeral, getEphemeralSourceFiles } from '../agent/ephemeral';
 import { analyzeStatic } from './static-analyzer';
 import { analyzeSessionDiff } from './session-comparator';
 import { saveDetectedIssues } from './save-issues';
@@ -112,6 +112,17 @@ export async function runAnalysis(
     ? (session.changed_files as string[])
     : [];
 
+  // 1.5. full 모드에서 source_files 로드 (있으면 정적 분석 컨텍스트로 첨부)
+  //      diff에 보이지 않는 사용처/상위 함수 확인 → partial-context 오탐 감소
+  let contextSources: { path: string; content: string; line_count: number }[] = [];
+  if (mode === 'full') {
+    try {
+      contextSources = await getEphemeralSourceFiles(sessionId);
+    } catch (err) {
+      warnings.push(`Failed to load source files for context: ${(err as Error).message}`);
+    }
+  }
+
   // 2. 정적 분석
   const allIssues: DetectedIssue[] = [];
   const unprocessedFiles: string[] = [];
@@ -126,6 +137,7 @@ export async function runAnalysis(
           filesChanged,
           diffs,
           eslintResults,
+          ...(contextSources.length > 0 ? { contextSources } : {}),
         },
         mode,
         { useLightModel: options.useLightModel, apiKey: options.apiKey }

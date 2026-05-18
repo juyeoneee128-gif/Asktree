@@ -69,6 +69,12 @@ interface StaticAnalysisInput {
    * 일부 룰은 직접 이슈로 변환. 없으면 기존 LLM 단독 분석과 동일.
    */
   eslintResults?: EslintIssueRaw[];
+  /**
+   * full_scan 모드에서만 전달되는 컨텍스트 소스 파일.
+   * diff에 보이지 않는 사용처를 LLM이 확인할 수 있도록 첨부.
+   * 토큰 한도는 prompts.ts에서 관리.
+   */
+  contextSources?: { path: string; content: string; line_count: number }[];
 }
 
 /**
@@ -182,6 +188,7 @@ async function callStaticAnalysis(
     sessionTitle: input.sessionTitle,
     filesChanged: input.filesChanged,
     diffs: diffsText,
+    contextSources: input.contextSources,
   });
   if (eslintContext) {
     userMessage = `${userMessage}\n\n${eslintContext}`;
