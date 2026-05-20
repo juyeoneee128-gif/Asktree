@@ -8,6 +8,7 @@ import {
   ANALYSIS_RESULT_TOOL,
   GUIDELINE_RESULT_TOOL,
   GUIDELINE_GENERATION_SYSTEM,
+  BOOT_SCAN_SYSTEM,
 } from '../prompts';
 
 describe('프롬프트 템플릿', () => {
@@ -699,5 +700,70 @@ describe('GUIDELINE_GENERATION_SYSTEM', () => {
     expect(GUIDELINE_GENERATION_SYSTEM).toContain('금지 행위를 구체적으로');
     expect(GUIDELINE_GENERATION_SYSTEM).toContain('허용 예외');
     expect(GUIDELINE_GENERATION_SYSTEM).toContain('이유를 한 줄');
+  });
+});
+
+describe('BOOT_SCAN_SYSTEM — 부팅 스캔 전용 감사 프롬프트', () => {
+  it('운영 코드 감사 톤의 핵심 키워드를 포함한다 (코드 변경 리뷰 ≠ 전체 감사)', () => {
+    // "신규 추가니까 정상" 사고를 명시적으로 차단하는 키워드들 — LLM이 0건 보고하던 회귀를 방지.
+    expect(BOOT_SCAN_SYSTEM).toContain('운영 중인');
+    expect(BOOT_SCAN_SYSTEM).toContain('감사');
+    expect(BOOT_SCAN_SYSTEM).toContain('코드 변경 리뷰가 아닙니다');
+    expect(BOOT_SCAN_SYSTEM).toContain('방금 추가된 코드');
+  });
+
+  it('보안 6개 카테고리 (SEC-1~6) + RLS 누락을 모두 명시한다', () => {
+    expect(BOOT_SCAN_SYSTEM).toContain('SEC-1');
+    expect(BOOT_SCAN_SYSTEM).toContain('SEC-2');
+    expect(BOOT_SCAN_SYSTEM).toContain('SEC-3');
+    expect(BOOT_SCAN_SYSTEM).toContain('SEC-4');
+    expect(BOOT_SCAN_SYSTEM).toContain('SEC-5');
+    expect(BOOT_SCAN_SYSTEM).toContain('SEC-6');
+    expect(BOOT_SCAN_SYSTEM).toContain('RLS');
+  });
+
+  it('ANALYSIS_RESULT_TOOL의 필수 필드 출력 지시를 포함한다 (도구 호출 일관성)', () => {
+    // 도구 호출 시 누락되면 안 되는 필드들 — 부팅 스캔에서도 동일하게 강제.
+    expect(BOOT_SCAN_SYSTEM).toContain('report_analysis_results');
+    expect(BOOT_SCAN_SYSTEM).toContain('confidence');
+    expect(BOOT_SCAN_SYSTEM).toContain('start_line');
+    expect(BOOT_SCAN_SYSTEM).toContain('file_signatures');
+  });
+
+  it('buildStaticAnalysisSystem(full)과 다른 별도 프롬프트다 (회귀 보호)', () => {
+    // 두 프롬프트가 의도치 않게 같아지면 부팅 스캔 효과가 사라지므로 명시적으로 검증.
+    expect(BOOT_SCAN_SYSTEM).not.toBe(buildStaticAnalysisSystem('full'));
+    expect(BOOT_SCAN_SYSTEM).not.toBe(buildStaticAnalysisSystem('problems_only'));
+  });
+});
+
+describe('ANALYSIS_RESULT_TOOL — required 회귀 보호 (CLAUDE.md CRITICAL 규칙)', () => {
+  // CRITICAL: CLAUDE.md에 ANALYSIS_RESULT_TOOL required 배열 변경 금지 명시.
+  // 이 테스트가 깨지면 prompts.ts의 도구 스키마가 변경됐다는 뜻 → 의도된 것인지 강제 검토.
+  it('최상위 required는 ["issues"] 그대로', () => {
+    const schema = ANALYSIS_RESULT_TOOL.input_schema as { required: string[] };
+    expect(schema.required).toEqual(['issues']);
+  });
+
+  it('issue 항목 required는 10개 필드 그대로', () => {
+    const schema = ANALYSIS_RESULT_TOOL.input_schema as {
+      properties: { issues: { items: { required: string[] } } };
+    };
+    const itemRequired = schema.properties.issues.items.required;
+    expect(itemRequired).toEqual(
+      expect.arrayContaining([
+        'title',
+        'level',
+        'fact',
+        'detail',
+        'fix_command',
+        'file',
+        'basis',
+        'confidence',
+        'start_line',
+        'end_line',
+      ])
+    );
+    expect(itemRequired).toHaveLength(10);
   });
 });

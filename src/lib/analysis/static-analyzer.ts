@@ -2,6 +2,7 @@ import { callClaude, estimateTokens } from './claude-client';
 import { ANALYSIS_MODELS } from './models';
 import {
   ANALYSIS_RESULT_TOOL,
+  BOOT_SCAN_SYSTEM,
   buildStaticAnalysisSystem,
   buildStaticAnalysisMessage,
 } from './prompts';
@@ -20,6 +21,19 @@ export interface StaticAnalysisOptions {
   useLightModel?: boolean;
   /** BYOK 키. */
   apiKey?: string;
+  /**
+   * true면 BOOT_SCAN_SYSTEM 사용 (부팅 스캔 전용 — 운영 코드 감사 톤).
+   * source_files가 신규 파일 diff로 변환된 입력에 대해 LLM이
+   * "방금 추가된 정상 코드"가 아니라 "운영 중인 코드"로 인식하도록 유도.
+   */
+  auditMode?: boolean;
+  /**
+   * split 경로에서 MAX_API_CALLS 대신 사용할 상한.
+   * 부팅 스캔에서는 분석 대상 파일 수가 많아 기본 5로는 대부분이 미처리로 잘림.
+   * 부팅 스캔 호출부에서 15 정도로 상향해 상위 우선순위 파일 50~80개를 커버한다.
+   * 코딩 세션 분석에서는 지정하지 말 것 (자동 분석 비용 폭주 방지).
+   */
+  maxApiCallsOverride?: number;
 }
 
 /**
@@ -198,8 +212,13 @@ async function callStaticAnalysis(
     ? ANALYSIS_MODELS.RUN_ANALYSIS_LIGHT
     : ANALYSIS_MODELS.RUN_ANALYSIS_FULL;
 
+  // auditMode가 켜져 있으면 부팅 스캔용 시스템 프롬프트 사용 (mode 인자는 무시 — 항상 full 수준 감사).
+  const systemPrompt = options.auditMode
+    ? BOOT_SCAN_SYSTEM
+    : buildStaticAnalysisSystem(mode);
+
   const result = await callClaude({
-    systemPrompt: buildStaticAnalysisSystem(mode),
+    systemPrompt,
     userMessage,
     tools: [ANALYSIS_RESULT_TOOL],
     maxTokens: getOutputBudget(mode),
@@ -237,8 +256,12 @@ async function callStaticAnalysisSplit(
   let callCount = 0;
   const skippedChunks: DiffItem[][] = [];
 
+  // 부팅 스캔에서는 maxApiCallsOverride로 상한을 늘릴 수 있음.
+  // 코딩 세션(override 미지정)에서는 기존 MAX_API_CALLS 유지 — 자동 분석 비용 폭주 방지.
+  const maxCalls = options.maxApiCallsOverride ?? MAX_API_CALLS;
+
   for (const chunk of chunks) {
-    if (callCount >= MAX_API_CALLS) {
+    if (callCount >= maxCalls) {
       skippedChunks.push(chunk);
       continue;
     }
@@ -275,7 +298,7 @@ async function callStaticAnalysisSplit(
     unprocessedFiles.push(...skippedFiles);
     allWarnings.push(formatUnprocessedFilesWarning(skippedFiles, 'token-budget'));
     allWarnings.push(
-      `Reached max API calls (${MAX_API_CALLS}), ${skippedChunks.length} chunk(s) skipped`
+      `Reached max API calls (${maxCalls}), ${skippedChunks.length} chunk(s) skipped`
     );
   }
 

@@ -14,6 +14,7 @@ import {
   deleteEphemeral,
 } from '@/src/lib/agent/ephemeral';
 import { assessFeatures } from '@/src/lib/specs/assess-features';
+import { runAnalysis } from '@/src/lib/analysis/run-analysis';
 import { syncAgentDocs } from '@/src/lib/specs/sync-docs';
 import { extractFeaturesForDocument } from '@/src/lib/specs/extract-features';
 import { dedupeFeaturesForProject } from '@/src/lib/specs/dedupe-features';
@@ -310,11 +311,15 @@ export async function POST(request: Request) {
     }
   }
 
-  // 9. ephemeral_data에 source_files 저장 + assessFeatures 실행 + 정리
-  //    분석 성공/실패와 무관하게 ephemeral + 가상 세션은 반드시 정리.
+  // 9. ephemeral_data에 source_files 저장 + assessFeatures + runAnalysis 실행 + 정리
+  //    실행 순서: saveEphemeral → assessFeatures → runAnalysis → cleanup.
+  //    runAnalysis는 내부에서 ephemeral을 삭제하지만, 실패 시에도 정리되도록
+  //    finally에서 한 번 더 호출(이미 삭제됐으면 0건 반환 — 안전).
   let featuresAssessed = 0;
   let scanDurationMs = 0;
   let assessError: string | null = null;
+  let issuesCreated = 0;
+  let analysisError: string | null = null;
 
   try {
     await saveEphemeralSourceFiles(virtualSessionId, payload.source_files);
@@ -333,25 +338,45 @@ export async function POST(request: Request) {
   } catch (err) {
     assessError = (err as Error).message;
     console.error('[source-snapshot] assessFeatures failed:', assessError);
-  } finally {
-    // ephemeral_data 삭제 (cascade는 사용하지 않음 — 명시적 정리)
-    try {
-      await deleteEphemeral(virtualSessionId);
-    } catch (err) {
-      console.warn(
-        '[source-snapshot] ephemeral cleanup failed:',
-        (err as Error).message
-      );
+  }
+
+  // 9-bis. 정적 분석 실행 — 이슈 탭 첫 연결 시 채우기.
+  //   assessFeatures 실패와 무관하게 시도(현황과 이슈는 독립).
+  //   실패해도 first_scan_done 갱신은 진행 — 다음 코딩 세션에서 자연스럽게 채워짐.
+  try {
+    const analysis = await runAnalysis(
+      payload.project_id,
+      virtualSessionId,
+      'full',
+      { sourceFilesAsDiff: true }
+    );
+    issuesCreated = analysis.issues_created;
+    if (analysis.warnings.length > 0) {
+      console.warn('[source-snapshot] analysis warnings:', analysis.warnings);
     }
-    // 가상 세션 삭제 (프론트엔드 세션 리스트에 노이즈 0)
-    try {
-      await adminClient.from('sessions').delete().eq('id', virtualSessionId);
-    } catch (err) {
-      console.warn(
-        '[source-snapshot] virtual session cleanup failed:',
-        (err as Error).message
-      );
-    }
+  } catch (err) {
+    analysisError = (err as Error).message;
+    console.error('[source-snapshot] runAnalysis failed:', analysisError);
+  }
+
+  // ephemeral_data 삭제 (runAnalysis가 성공한 경우 이미 삭제됐을 수 있음 — 멱등)
+  try {
+    await deleteEphemeral(virtualSessionId);
+  } catch (err) {
+    console.warn(
+      '[source-snapshot] ephemeral cleanup failed:',
+      (err as Error).message
+    );
+  }
+  // 가상 세션 삭제 (프론트엔드 세션 리스트에 노이즈 0).
+  //   issues.session_id는 ON DELETE SET NULL이므로 감지된 이슈는 보존됨.
+  try {
+    await adminClient.from('sessions').delete().eq('id', virtualSessionId);
+  } catch (err) {
+    console.warn(
+      '[source-snapshot] virtual session cleanup failed:',
+      (err as Error).message
+    );
   }
 
   // 10. assessFeatures 실패 시 first_scan_done은 갱신하지 않음 — 다음 부팅에 재시도
@@ -390,9 +415,11 @@ export async function POST(request: Request) {
       features_assessed: featuresAssessed,
       features_extracted: featuresExtracted,
       docs_synced: docsSynced,
+      issues_created: issuesCreated,
       scan_duration_ms: scanDurationMs,
       source_files_count: payload.source_files.length,
       docs_files_count: docsFiles.length,
+      ...(analysisError ? { analysis_error: analysisError } : {}),
       security: { signature_verified: signatureVerified },
     },
     { status: 201 }
