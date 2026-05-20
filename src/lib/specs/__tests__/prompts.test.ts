@@ -124,6 +124,39 @@ describe('시스템 프롬프트', () => {
     expect(EXTRACT_FEATURES_SYSTEM).toContain('비어있으면 안 된다');
   });
 
+  it('기능 추출 프롬프트가 expected_items 결정성 규칙을 명시한다 (회귀 보호)', () => {
+    // 같은 docs에서 추출해도 LLM이 다른 항목을 생성하던 회귀를 방지.
+    // 원문 기반, 추론 금지, 중복 금지 키워드 검증.
+    expect(EXTRACT_FEATURES_SYSTEM).toContain('원문 기반');
+    expect(EXTRACT_FEATURES_SYSTEM).toContain('추론 금지');
+    expect(EXTRACT_FEATURES_SYSTEM).toContain('중복 금지');
+    expect(EXTRACT_FEATURES_SYSTEM).toContain('기획서 원문');
+  });
+
+  it('기능 추출 프롬프트가 "other" 문서 휴리스틱 키워드를 포함한다 (회귀 보호)', () => {
+    // 테스트 결과/컴포넌트 목록/프레임 목록/회의록이 PRD로 오분류되던 회귀 방지.
+    expect(EXTRACT_FEATURES_SYSTEM).toContain('Storybook');
+    expect(EXTRACT_FEATURES_SYSTEM).toContain('Pencil');
+    expect(EXTRACT_FEATURES_SYSTEM).toContain('test-results');
+    expect(EXTRACT_FEATURES_SYSTEM).toContain('프레임목록');
+    expect(EXTRACT_FEATURES_SYSTEM).toContain('회의록');
+    expect(EXTRACT_FEATURES_SYSTEM).toContain('인수인계');
+  });
+
+  it('판정 프롬프트가 핵심 로직 존재 시 implemented 인정 규칙을 포함한다 (구현율 안정화)', () => {
+    // 핵심 로직이 있어도 미구현으로 판정되던 과소 추정 회귀 방지.
+    expect(ASSESS_FEATURES_SYSTEM).toContain('핵심 함수가 정의');
+    expect(ASSESS_FEATURES_SYSTEM).toContain('완벽하지 않아도');
+    expect(ASSESS_FEATURES_SYSTEM).toContain('TODO');
+    expect(ASSESS_FEATURES_SYSTEM).toContain('placeholder');
+  });
+
+  it('판정 프롬프트가 expected_items 외 항목 추가 금지 규칙을 포함한다 (정확 매칭)', () => {
+    // expected_items 부분집합 강제 — UI Set 비교 일관성.
+    expect(ASSESS_FEATURES_SYSTEM).toContain('expected_items에 없는 이름');
+    expect(ASSESS_FEATURES_SYSTEM).toContain('부분집합');
+  });
+
   it('Reverse IA 프롬프트에 역추출 지시가 포함되어 있다', () => {
     expect(REVERSE_IA_SYSTEM).toContain('세션 로그');
     expect(REVERSE_IA_SYSTEM).toContain('기능 추출');

@@ -581,6 +581,29 @@ diff 형식의 \`+\` prefix는 단지 전송 포맷일 뿐, 실제로는 운영 
 - **깊은 중첩** (info) — 4단계 이상 if/for → 가독성 저하.
 - **명백한 죽은 코드** (info) — 어떤 호출자도 없는 export, 도달 불가 분기.
 
+## 보고하지 말아야 할 항목 (False positive 방지 — 중요)
+
+다음 패턴은 **이슈로 보고하지 마라.** Next.js + Supabase 스택의 정상 서버 사이드 패턴이다:
+
+1. **createAdminClient() 사용** — \`app/api/\` 또는 \`src/lib/\` 내부에서 호출되는 경우.
+   서버 사이드 전용이며 클라이언트 번들에 노출되지 않는다. 정상 패턴이다.
+2. **process.env.SUPABASE_SERVICE_ROLE_KEY 읽기** — 서버 코드에서 환경변수로 읽는 것은 정상.
+   환경변수에서 읽는 것은 **하드코딩이 아니다.** SEC-1 대상이 아님.
+3. **process.env.* / .env.local 읽기** — 모든 환경변수 접근 패턴.
+   하드코딩으로 오인하지 마라. \`NEXT_PUBLIC_\` prefix는 의도적 공개이므로 시크릿 노출도 아니다.
+4. **Next.js API 라우트(app/api/)는 서버에서만 실행** — 클라이언트 노출이 아니다.
+   "클라이언트에 노출됨"으로 보고하지 마라. \`'use client'\` 지시문이 없는 라우트는 서버 컴포넌트/핸들러다.
+5. **Authorization: Bearer 토큰 인증이 있는 API** — "인증 없음"으로 보고하지 마라.
+   \`extractBearerToken\`, \`Authorization\` 헤더 파싱, \`verifyAgentToken\` 등의 패턴이 있으면 인증 적용된 것이다.
+6. **RLS 활성 테이블에 adminClient 사용** — 서버에서 의도적으로 RLS를 우회하는 것은 정상.
+   adminClient는 백엔드 비즈니스 로직(예: cron, agent push, admin task)에서 RLS와 무관하게 동작해야 하는 경우 사용한다.
+
+추가로 일반 false positive 방지:
+- \`.env.example\` / \`.env.sample\`의 placeholder 값 (\`YOUR_KEY_HERE\`, \`xxx\` 등) — 시크릿 아님.
+- 테스트 파일(\`.test.ts\`, \`.spec.ts\`, \`__tests__/\`)의 하드코딩된 테스트 값 — 시크릿 아님.
+- 주석 안의 예시 코드 (\`// example: sk-xxxxx\`) — 시크릿 아님.
+- Supabase/Prisma의 파라미터 바인딩 — SQL 인젝션 아님.
+
 ## 보고 규칙
 
 - \`ANALYSIS_RESULT_TOOL\` (\`report_analysis_results\`) 도구로 출력: \`issues\` 배열 + \`file_signatures\` 배열.

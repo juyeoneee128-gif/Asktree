@@ -735,6 +735,22 @@ describe('BOOT_SCAN_SYSTEM — 부팅 스캔 전용 감사 프롬프트', () => 
     expect(BOOT_SCAN_SYSTEM).not.toBe(buildStaticAnalysisSystem('full'));
     expect(BOOT_SCAN_SYSTEM).not.toBe(buildStaticAnalysisSystem('problems_only'));
   });
+
+  it('서버 사이드 false positive Negative list 6개 패턴을 포함한다 (오탐 감소)', () => {
+    // createAdminClient, process.env.SERVICE_ROLE, Authorization Bearer 등이 정상 패턴이라는 명시.
+    // 이 키워드가 없으면 부팅 스캔이 서버 사이드 정상 코드를 보안 위험으로 오탐한다.
+    expect(BOOT_SCAN_SYSTEM).toContain('보고하지 말아야 할 항목');
+    expect(BOOT_SCAN_SYSTEM).toContain('createAdminClient');
+    expect(BOOT_SCAN_SYSTEM).toContain('process.env');
+    expect(BOOT_SCAN_SYSTEM).toContain('SUPABASE_SERVICE_ROLE_KEY');
+    expect(BOOT_SCAN_SYSTEM).toContain('app/api/');
+    expect(BOOT_SCAN_SYSTEM).toContain('Authorization');
+    expect(BOOT_SCAN_SYSTEM).toContain('Bearer');
+    expect(BOOT_SCAN_SYSTEM).toContain('RLS');
+    // 일반 false positive 방지도 함께 명시
+    expect(BOOT_SCAN_SYSTEM).toContain('.env.example');
+    expect(BOOT_SCAN_SYSTEM).toContain('테스트 파일');
+  });
 });
 
 describe('ANALYSIS_RESULT_TOOL — required 회귀 보호 (CLAUDE.md CRITICAL 규칙)', () => {
